@@ -16,7 +16,7 @@ export async function onRequestGet() {
     { flag: '🇰🇷', country: '韩国', title: 'Naver Smart Store推出AI客服工具，提升卖家效率', summary: 'Naver推出AI客服助手，可自动回复常见问题、处理退换货请求，测试显示客服效率提升60%。', tag: '平台动态', time: '1天前' },
     { flag: '🇹🇭', country: '泰国', title: '泰国数字经济部支持本土电商发展，推出税收优惠', summary: '泰国数字经济部宣布对年销售额低于500万泰铢的小型电商卖家免征增值税，鼓励线上创业。', tag: '政策法规', time: '1天前' }
   ];
-  return new Response(JSON.stringify({ source: 'live', count: news.length, news, updated: new Date().toLocaleString('zh-CN') }), {
+  return new Response(JSON.stringify({ source: 'live', count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN') }), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
 }
