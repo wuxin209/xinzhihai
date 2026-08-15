@@ -14,8 +14,8 @@ export async function onRequestGet(context) {
 
     const apiUrl = 'https://restapi.amap.com/v3/place/around?key=' + AMAP_KEY +
       '&location=' + lng + ',' + lat + '&keywords=' + encodeURIComponent(keyword) +
-      '&radius=' + radius + '&offset=20&page=' + page + '&extensions=all&sortrule=weight&output=JSON';
-    const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+      '&radius=' + radius + '&offset=20&page=' + page + '&extensions=base&sortrule=weight&output=JSON';
+    const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
     const data = await resp.json();
 
     if (data.status !== '1') return new Response(JSON.stringify({ source: 'fallback', error: data.info, restaurants: [] }), { headers: { 'Content-Type': 'application/json' } });
@@ -26,8 +26,8 @@ export async function onRequestGet(context) {
       tel: poi.tel || '',
       type: poi.type || '',
       distance: poi.distance ? (poi.distance < 1000 ? poi.distance + 'm' : (poi.distance/1000).toFixed(1) + 'km') : '',
-      rating: poi.biz_ext?.rating || '',
-      cost: poi.biz_ext?.cost || ''
+      rating: '',
+      cost: ''
     }));
 
     return new Response(JSON.stringify({ source: 'amap', count: restaurants.length, keyword, restaurants }), {
