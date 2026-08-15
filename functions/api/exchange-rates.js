@@ -1,7 +1,6 @@
 let cacheData = null;
 let cacheTime = 0;
 const CACHE_TTL = 3600000;
-
 export async function onRequestGet() {
   try {
     if (cacheData && Date.now() - cacheTime < CACHE_TTL) {
@@ -15,6 +14,7 @@ export async function onRequestGet() {
     const result = {
       source: 'live',
       USD: +(1 / r.USD).toFixed(4),
+      CAD: +(1 / r.CAD).toFixed(4),
       AUD: +(1 / r.AUD).toFixed(4),
       JPY: +(1 / r.JPY).toFixed(6),
       KRW: +(1 / r.KRW).toFixed(6),
@@ -27,7 +27,7 @@ export async function onRequestGet() {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   } catch (e) {
-    return new Response(JSON.stringify({ source: 'fallback', USD: 6.79, AUD: 4.78, JPY: 0.0425, KRW: 0.0048, THB: 0.204, error: e.message }), {
+    return new Response(JSON.stringify({ source: 'fallback', USD: 6.79, CAD: 4.96, AUD: 4.78, JPY: 0.0425, KRW: 0.0048, THB: 0.204, error: e.message }), {
       headers: { 'Content-Type': 'application/json' }
     });
   }
