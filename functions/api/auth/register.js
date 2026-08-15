@@ -1,4 +1,4 @@
-import { json, handleOptions, hashPassword, signJWT, getFingerprint, getIP } from '../_lib.js';
+import { json, handleOptions, hashPassword, signJWT, getFingerprint, getIP } from '../../_lib.js';
 
 export async function onRequestOptions() { return handleOptions(); }
 

@@ -1,4 +1,4 @@
-import { json, handleOptions, authenticate, hashPassword } from '../_lib.js';
+import { json, handleOptions, authenticate, hashPassword } from '../../../_lib.js';
 
 export async function onRequestOptions() { return handleOptions(); }
 
