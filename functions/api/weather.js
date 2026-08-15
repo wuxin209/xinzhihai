@@ -1,3 +1,4 @@
+import { getAmapKey } from './_config.js';
 async function fetchOpenMeteo() {
   const lat = 25.43, lon = 119.01;
   const resp = await fetch(
@@ -30,7 +31,7 @@ export async function onRequestGet(context) {
     try {
       weatherData = await fetchOpenMeteo();
     } catch (e) {
-      const amapKey = context.env.AMAP_KEY || '';
+      const amapKey = getAmapKey(context.env);
       if (amapKey) {
         const resp = await fetch('https://restapi.amap.com/v3/weather/weatherInfo?key=' + amapKey + '&city=350300&extensions=all', { signal: AbortSignal.timeout(8000) });
         const amap = await resp.json();

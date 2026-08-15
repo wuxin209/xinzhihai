@@ -1,5 +1,6 @@
+import { getAmapKey } from './_config.js';
 export async function onRequestGet(context) {
-  const AMAP_KEY = context.env.AMAP_KEY || '';
+  const AMAP_KEY = getAmapKey(context.env);
   try {
     const ip = context.request.headers.get('CF-Connecting-IP') ||
                context.request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || '';

@@ -1,6 +1,4 @@
-function getKey(context) {
-  return context.env.DEEPSEEK_API_KEY || '';
-}
+import { getDeepSeekKey } from './_config.js';
 
 const TPL = {
   '家居': { kw: '家居收纳 厨房神器 居家好物', points: ['材质厚实做工精细，质感满满','安装简单5分钟搞定','实用又好看，朋友来都问链接','性价比超高，同价位首选','细节到位设计贴心'] },
@@ -20,7 +18,7 @@ async function callDeepSeek(apiKey, messages) {
     body: JSON.stringify({ model: 'deepseek-chat', messages, temperature: 0.7, max_tokens: 2000 }),
     signal: AbortSignal.timeout(25000)
   });
-  if (!resp.ok) throw new Error('DeepSeek API error: ' + resp.status);
+  if (!resp.ok) throw new Error('DeepSeek error: ' + resp.status);
   const data = await resp.json();
   return data.choices?.[0]?.message?.content || '';
 }
@@ -74,7 +72,7 @@ export async function onRequestPost(context) {
     const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
     const isCoupang = site.includes('酷胖') || site.includes('Coupang');
     const siteName = isCoupang ? 'Coupang' : isTiktok ? 'TikTok Shop' : 'Amazon';
-    const apiKey = getKey(context);
+    const apiKey = getDeepSeekKey(context.env);
 
     let aiResult;
     if (apiKey) {
@@ -122,9 +120,6 @@ export async function onRequestPost(context) {
     });
   }
 }
-
 export async function onRequestOptions() {
-  return new Response(null, {
-    headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }
-  });
+  return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
 }

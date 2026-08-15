@@ -1,3 +1,5 @@
+import { getDeepSeekKey, getVolcanoKey } from './_config.js';
+
 export async function onRequestPost(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
@@ -8,7 +10,7 @@ export async function onRequestPost(context) {
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: prompt });
 
-    const deepseekKey = context.env.DEEPSEEK_API_KEY || '';
+    const deepseekKey = getDeepSeekKey(context.env);
     if (deepseekKey) {
       const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
@@ -23,7 +25,25 @@ export async function onRequestPost(context) {
         });
       }
     }
-    return new Response(JSON.stringify({ source: 'fallback', content: '', error: 'AI服务未配置' }), {
+    // 火山方舟备用
+    const volcanoKey = getVolcanoKey(context.env);
+    if (volcanoKey) {
+      try {
+        const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + volcanoKey },
+          body: JSON.stringify({ model: 'doubao-pro-32k', messages, temperature: 0.7, max_tokens: 2000 }),
+          signal: AbortSignal.timeout(25000)
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          return new Response(JSON.stringify({ source: 'volcano', content: data.choices?.[0]?.message?.content || '' }), {
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
+        }
+      } catch (e) {}
+    }
+    return new Response(JSON.stringify({ source: 'fallback', content: '', error: 'AI服务暂时不可用' }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (e) {

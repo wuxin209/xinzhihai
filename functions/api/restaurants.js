@@ -1,3 +1,4 @@
+import { getAmapKey } from './_config.js';
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const lat = url.searchParams.get('lat');
@@ -5,7 +6,7 @@ export async function onRequestGet(context) {
   const keyword = url.searchParams.get('keyword') || '美食';
   const radius = url.searchParams.get('radius') || '5000';
   const page = url.searchParams.get('page') || '1';
-  const AMAP_KEY = context.env.AMAP_KEY || '';
+  const AMAP_KEY = getAmapKey(context.env);
 
   try {
     if (!AMAP_KEY) return new Response(JSON.stringify({ source: 'fallback', error: '地图API未配置', restaurants: [] }), { headers: { 'Content-Type': 'application/json' } });
