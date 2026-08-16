@@ -31,29 +31,43 @@ export async function hashPassword(password, salt = 'xinzhihai2026') {
   return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// UTF-8安全的base64编解码（CF Workers兼容，不用escape/unescape）
+function utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function base64ToUtf8(b64) {
+  const binary = atob(b64.replace(/\n/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
 // 读取账号数据
 export async function getAccounts(env) {
   const token = getGithubToken(env);
   try {
     const resp = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' }
     });
-    if (!resp.ok) return { accounts: [] };
+    if (!resp.ok) return { accounts: [], error: `HTTP ${resp.status}` };
     const data = await resp.json();
-    const content = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g, '')))));
+    const content = JSON.parse(base64ToUtf8(data.content));
     return { accounts: content.accounts || [], sha: data.sha };
   } catch (e) {
-    return { accounts: [] };
+    return { accounts: [], error: e.message };
   }
 }
 
 // 写入账号数据
 export async function saveAccounts(env, accounts, sha) {
   const token = getGithubToken(env);
-  const content = btoa(unescape(encodeURIComponent(JSON.stringify({ accounts }, null, 2))));
+  const content = utf8ToBase64(JSON.stringify({ accounts }, null, 2));
   const resp = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
     method: 'PUT',
-    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json' },
+    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' },
     body: JSON.stringify({ message: `更新账号数据 ${new Date().toISOString()}`, content, sha })
   });
   return resp.ok;
