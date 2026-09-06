@@ -1,0 +1,2 @@
+# 修复妙搭 resolveAppUrl 给静态资源加 /app/app_17bz951msx7 前缀导致的 404
+/app/app_17bz951msx7/assets/* /assets/:splat 200
