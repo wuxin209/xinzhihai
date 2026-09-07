@@ -131,6 +131,26 @@ async function fetchGoogleNews() {
   return out;
 }
 
+// 按标签(分类)做轮转交错，保证不同分类均匀分布，避免同一分类扎堆
+function balanceByTag(items) {
+  const buckets = new Map();
+  for (const it of items) {
+    const k = it.tag || '其他';
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(it);
+  }
+  const queues = [...buckets.values()].map(q => q.slice());
+  const out = [];
+  let added = true;
+  while (added) {
+    added = false;
+    for (const q of queues) {
+      if (q.length) { out.push(q.shift()); added = true; }
+    }
+  }
+  return out;
+}
+
 export async function onRequestGet() {
   if (cacheData && Date.now() - cacheTime < CACHE_TTL) {
     return new Response(JSON.stringify({ ...cacheData, cached: true }), {
@@ -168,7 +188,7 @@ export async function onRequestGet() {
       if (!existTitles.has(f.title.slice(0, 12))) news.push({ ...f, time: '近期' });
     }
   }
-  news = news.slice(0, 15);
+  news = balanceByTag(news).slice(0, 15);
   const result = { source, count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN') };
   if (zb.length || cif.length) { cacheData = result; cacheTime = Date.now(); }
   return new Response(JSON.stringify(result), {
