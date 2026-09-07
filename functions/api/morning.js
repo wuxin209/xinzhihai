@@ -138,22 +138,29 @@ async function fetchGoogleNews() {
   return out;
 }
 
-// 按标签(分类)+来源做轮转交错，保证 AMZ/TT 与各分类均匀分布，避免扎堆
-function balanceByTag(items) {
-  const buckets = new Map();
-  for (const it of items) {
-    const k = (it.tag || '其他') + '|' + (it.origin || it.source || '');
-    if (!buckets.has(k)) buckets.set(k, []);
-    buckets.get(k).push(it);
-  }
-  const queues = [...buckets.values()].map(q => q.slice());
+// 按来源(平台)轮转交错：保证 TikTok(TT123) 与 亚马逊(AMZ123) 交替出现，不会全是亚马逊
+function balanceByOrigin(items) {
+  // 分成 TikTok 阵营 / 亚马逊阵营 / 其他
+  const isTT = it => (it.origin || it.source) === 'TT123' || /tiktok|抖音海外/i.test(it.title);
+  const isAmz = it => (it.origin || it.source) === 'AMZ123';
+  const tt = items.filter(isTT);
+  const amz = items.filter(it => isAmz(it) && !isTT(it));
+  const other = items.filter(it => !isTT(it) && !isAmz(it));
   const out = [];
-  let added = true;
-  while (added) {
-    added = false;
-    for (const q of queues) {
-      if (q.length) { out.push(q.shift()); added = true; }
+  let i = 0;
+  // 交替：亚马逊、TikTok、亚马逊、TikTok …… 保证两边都有固定占比
+  while (amz.length || tt.length || other.length) {
+    if (i % 2 === 0) {
+      if (amz.length) out.push(amz.shift());
+      else if (tt.length) out.push(tt.shift());
+      else if (other.length) out.push(other.shift());
+    } else {
+      if (tt.length) out.push(tt.shift());
+      else if (amz.length) out.push(amz.shift());
+      else if (other.length) out.push(other.shift());
     }
+    i++;
+    if (i > 40) break;
   }
   return out;
 }
@@ -165,10 +172,10 @@ export async function onRequestGet() {
     });
   }
 
-  // ① 优先抓取 AMZ123 + TT123（并行）
+  // ① 抓取 AMZ123 快讯(亚马逊为主) + TT123 TikTok资讯（多抓一些保证TikTok占比）
   const [amz, tt] = await Promise.all([
-    fetchNavSite('https://www.amz123.com/kx', 'AMZ123', 8).catch(() => []),
-    fetchNavSite('https://www.tt123.com/t/', 'TT123', 7).catch(() => [])
+    fetchNavSite('https://www.amz123.com/kx', 'AMZ123', 9).catch(() => []),
+    fetchNavSite('https://www.tt123.com/t/', 'TT123', 11).catch(() => [])
   ]);
   let news = [...amz, ...tt];
   // 跨来源去重（AMZ123/TT123 是姐妹站，会有相同文章）
@@ -183,7 +190,7 @@ export async function onRequestGet() {
   if (amz.length) sources.push('AMZ123');
   if (tt.length) sources.push('TT123');
 
-  // ② 不足时补 Google News
+  // ② 不足时补 Google News（区分亚马逊/TikTok查询）
   if (news.length < 10) {
     const g = await fetchGoogleNews().catch(() => []);
     if (g.length) sources.push('GoogleNews');
@@ -191,7 +198,7 @@ export async function onRequestGet() {
     for (const it of g) { if (news.length >= 15) break; if (!exist.has(it.title.slice(0, 14))) news.push(it); }
   }
 
-  // ③ 仍不足用精选兜底
+  // ③ 仍不足用精选兜底（TikTok 与 亚马逊 兜底都要有）
   let source = sources.length ? 'live:' + sources.join('+') : 'curated';
   if (news.length < 8) {
     source = sources.length ? 'mixed:' + sources.join('+') : 'curated';
@@ -201,7 +208,8 @@ export async function onRequestGet() {
       if (!existTitles.has(f.title.slice(0, 12))) news.push({ ...f, time: '近期' });
     }
   }
-  news = balanceByTag(news).slice(0, 15);
+  // 按来源平台交替，保证 TikTok 固定占比，不会全是亚马逊
+  news = balanceByOrigin(news).slice(0, 15);
   const result = { source, count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN') };
   if (amz.length || tt.length) { cacheData = result; cacheTime = Date.now(); }
   return new Response(JSON.stringify(result), {
