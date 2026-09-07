@@ -207,7 +207,7 @@ export async function onRequestGet() {
   ]);
   if (zb.length) sources.push('AMZ123早报');
   if (tt.length) sources.push('TT123');
-  let news = dedupe([...zb.map(toItem), ...tt.map(toItem)]);
+  let pool = dedupe([...zb.map(toItem), ...tt.map(toItem)]);
 
   // ② 偶尔补充：雨果网(每3天)、知无不言(每2天错开)，每次最多1条，绝不占大比例
   const extras = [];
@@ -219,53 +219,46 @@ export async function onRequestGet() {
   if (doy % 2 === 0) {
     const was = await fetchText('https://www.wearesellers.com/m').then(h => {
       const all = parseWeAreSellers(h);
-      // 按日期轮换取1条，保证每天可能不同
       return all.slice(doy % Math.max(1, all.length), (doy % Math.max(1, all.length)) + 1);
     }).catch(() => []);
     if (was.length) sources.push('知无不言');
     extras.push(...was.map(toItem));
   }
-  news = dedupe([...news, ...extras]);
+  pool = dedupe([...pool, ...extras]);
 
-  // ③ Google News 补海关/外贸（实时不足时）
+  // ③ Google News 补海关/外贸实时内容
+  const g = await fetchGoogleNews().catch(() => []);
+  if (g.length) sources.push('GoogleNews');
+  pool = dedupe([...pool, ...g.map(toItem)]);
+
   const isPolicy = t => ['海关要闻', '政策法规', '合规预警'].includes(t);
-  let policyCnt = news.filter(n => isPolicy(n.tag)).length;
-  if (news.length < 12 || policyCnt < 3) {
-    const g = await fetchGoogleNews().catch(() => []);
-    if (g.length) sources.push('GoogleNews');
-    const exist = new Set(news.map(n => n.title.slice(0, 14)));
-    for (const it of g.map(toItem)) {
-      if (news.length >= 15) break;
-      if (!exist.has(it.title.slice(0, 14))) news.push(it);
-    }
+  const TOTAL = 15, POLICY_MIN = 4;
+
+  // ④ 固定保证：先拆出实时政策类，不足 4 条用精选海关/政策池按日期轮换补齐（预留专属坑位，不被其他新闻挤掉）
+  const livePolicy = pool.filter(n => isPolicy(n.tag));
+  const liveOther = pool.filter(n => !isPolicy(n.tag));
+  const policyBlock = [...livePolicy];
+  const existP = new Set(policyBlock.map(n => n.title.slice(0, 12)));
+  const rotated = CUSTOMS_POLICY.map((x, i) => CUSTOMS_POLICY[(i + doy) % CUSTOMS_POLICY.length]);
+  for (const f of rotated) {
+    if (policyBlock.length >= POLICY_MIN) break;
+    if (existP.has(f.title.slice(0, 12))) continue;
+    policyBlock.push({ ...f, time: '近期' });
+    existP.add(f.title.slice(0, 12));
   }
 
-  // ④ 固定保证：海关/外贸/政策板块至少 4 条（实时不够就用精选补齐，按日期轮换）
-  policyCnt = news.filter(n => isPolicy(n.tag)).length;
-  const POLICY_MIN = 4;
-  if (policyCnt < POLICY_MIN) {
-    const existT = new Set(news.map(n => n.title.slice(0, 12)));
-    // 从精选政策池按日期错位轮换
-    const rotated = CUSTOMS_POLICY.map((x, i) => CUSTOMS_POLICY[(i + doy) % CUSTOMS_POLICY.length]);
-    for (const f of rotated) {
-      if (policyCnt >= POLICY_MIN || news.length >= 15) break;
-      if (existT.has(f.title.slice(0, 12))) continue;
-      news.push({ ...f, time: '近期' });
-      existT.add(f.title.slice(0, 12));
-      policyCnt++;
-    }
-  }
-
-  // ⑤ 仍不足总数，用行业兜底补齐
-  if (news.length < 10) {
-    const existT = new Set(news.map(n => n.title.slice(0, 12)));
+  // ⑤ 其余坑位用实时行业/平台新闻填充，不足再用行业兜底
+  const otherSlots = TOTAL - policyBlock.length;
+  const otherBlock = liveOther.slice(0, otherSlots);
+  if (otherBlock.length < otherSlots) {
+    const existO = new Set([...policyBlock, ...otherBlock].map(n => n.title.slice(0, 12)));
     for (const f of FALLBACK_NEWS) {
-      if (news.length >= 15) break;
-      if (!existT.has(f.title.slice(0, 12))) news.push({ ...f, time: '近期' });
+      if (otherBlock.length >= otherSlots) break;
+      if (!existO.has(f.title.slice(0, 12))) otherBlock.push({ ...f, time: '近期' });
     }
   }
 
-  news = balanceByTag(dedupe(news)).slice(0, 15);
+  let news = balanceByTag(dedupe([...policyBlock, ...otherBlock])).slice(0, TOTAL);
   const source = sources.length ? 'live:' + sources.join('+') : 'curated';
   const result = { source, count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN') };
   cacheData = result; cacheTime = Date.now();
