@@ -171,6 +171,14 @@ export async function onRequestGet() {
     fetchNavSite('https://www.tt123.com/t/', 'TT123', 7).catch(() => [])
   ]);
   let news = [...amz, ...tt];
+  // 跨来源去重（AMZ123/TT123 是姐妹站，会有相同文章）
+  const seenTitle = new Set();
+  news = news.filter(n => {
+    const k = (n.title || '').replace(/[\s\p{P}]/gu, '').slice(0, 18);
+    if (!k || seenTitle.has(k)) return false;
+    seenTitle.add(k);
+    return true;
+  });
   const sources = [];
   if (amz.length) sources.push('AMZ123');
   if (tt.length) sources.push('TT123');

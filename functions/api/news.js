@@ -165,6 +165,14 @@ export async function onRequestGet() {
   ]);
 
   let news = [...zb.map(toItem), ...cif.map(toItem)];
+  // 跨来源去重
+  const seenTitle = new Set();
+  news = news.filter(n => {
+    const k = (n.title || '').replace(/[\s\p{P}]/gu, '').slice(0, 18);
+    if (!k || seenTitle.has(k)) return false;
+    seenTitle.add(k);
+    return true;
+  });
   const sources = [];
   if (zb.length) sources.push('AMZ123早报');
   if (cif.length) sources.push('雨果网');
