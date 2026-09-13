@@ -1,5 +1,6 @@
 // 注册接口 - 数据存入GitHub私有仓库
 import { getAccounts, saveAccounts, hashPassword, corsHeaders } from '../_config.js';
+import { createSession } from '../../_lib.js';
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: corsHeaders });
@@ -43,7 +44,7 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: '注册失败，请稍后重试' }), { status: 500, headers: corsHeaders });
     }
 
-    const token = btoa(username + ':' + Date.now()) + '.' + btoa(Math.random().toString(36));
+    const token = await createSession(context.env, newAccount);
     return new Response(JSON.stringify({
       success: true,
       token,
