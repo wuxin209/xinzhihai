@@ -98,7 +98,7 @@ async function googleFor(cfg) {
   await Promise.all(cfg.q.map(async (q) => {
     try {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + win)}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
-      const xml = await fetchText(url, 7000);
+      const xml = await fetchText(url, 6000);
       for (const t of parseGoogleRss(xml).slice(0, 6)) {
         const k = t.slice(0, 18);
         if (seen.has(k)) continue;
@@ -212,23 +212,21 @@ async function handle({ request }) {
     live.push(makeLiveItem(country, flag, title, src));
   };
 
-  // ① Google News 实时（主源）
-  try {
-    const g = await googleFor(cfg);
+  // ①+② 并发抓取 Google News（主）与 AMZ123/TT123（补），整体最多等 5.5s，到点用已拿到的部分，保证接口快于前端 8s 超时
+  const rel = cfg.rel;
+  const pick = (arr, src) => arr.filter(t => rel.test(t)).slice(0, 4).forEach(t => pushLive(t, src));
+  const pGoogle = googleFor(cfg).then(g => {
     if (g.length) { sources.push('GoogleNews'); g.slice(0, 8).forEach(t => pushLive(t, 'Google资讯')); }
-  } catch (e) {}
-
-  // ② AMZ123 / TT123 选品趋势文章（补充，按日期错开）
-  try {
+  }).catch(() => {});
+  const pTrade = (async () => {
     const [zb, tt] = await Promise.all([
-      fetchText('https://www.amz123.com/zb', 7000).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
-      fetchText('https://www.tt123.com/t/', 7000).then(h => parseNavTitles(h, 'tt123')).catch(() => [])
+      fetchText('https://www.amz123.com/zb', 6000).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
+      fetchText('https://www.tt123.com/t/', 6000).then(h => parseNavTitles(h, 'tt123')).catch(() => [])
     ]);
-    const rel = cfg.rel;
-    const pick = (arr, src) => arr.filter(t => rel.test(t)).slice(0, 4).forEach(t => pushLive(t, src));
     if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
     if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
-  } catch (e) {}
+  })().catch(() => {});
+  await Promise.race([Promise.allSettled([pGoogle, pTrade]), new Promise(r => setTimeout(r, 5500))]);
 
   // ③ 精选兜底按日期轮换，补足到 limit
   const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length)
