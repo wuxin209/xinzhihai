@@ -211,18 +211,14 @@ async function collectAll(doy) {
       : Promise.resolve([])),
     fetchGoogleNews().catch(() => [])
   ];
-  let settled;
-  try {
-    // 每个源各自 5.6s 封顶（见 fetchText / fetchGoogleNews），并行后整体不超过约 5.6s
-    settled = await Promise.allSettled(tasks);
-  } catch (e) {
-    settled = tasks.map(() => ({ status: 'fulfilled', value: [] }));
-  }
-  const val = i => {
-    const r = settled[i];
-    return (r && r.status === 'fulfilled' && Array.isArray(r.value)) ? r.value : [];
-  };
-  const zb = val(0), tt = val(1), cif = val(2), was = val(3), g = val(4);
+  const HARD_WALL = 6000; // 硬墙：到点就用已抓到的，未返回的源直接放弃，保证整体≤约6s
+  const got = [[], [], [], [], []];
+  const jobs = tasks.map((p, i) => p.then(v => { got[i] = Array.isArray(v) ? v : []; }).catch(() => {}));
+  await Promise.race([
+    Promise.all(jobs),
+    new Promise(res => setTimeout(res, HARD_WALL))
+  ]);
+  const [zb, tt, cif, was, g] = got;
   if (zb.length) sources.push('AMZ123早报');
   if (tt.length) sources.push('TT123');
   if (cif.length) sources.push('雨果网');
