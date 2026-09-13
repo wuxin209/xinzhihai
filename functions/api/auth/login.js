@@ -1,5 +1,6 @@
 // 登录接口 - 验证GitHub私有仓库中的账号
 import { getAccounts, saveAccounts, hashPassword, corsHeaders } from '../_config.js';
+import { createSession } from '../../_lib.js';
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: corsHeaders });
@@ -43,7 +44,9 @@ export async function onRequestPost(context) {
         return new Response(JSON.stringify({ error: '密码错误' }), { status: 401, headers: corsHeaders });
       }
       if (updated) await saveAccounts(context.env, accounts, sha);
-      const token = btoa(username + ':' + Date.now()) + '.' + btoa(Math.random().toString(36));
+      const adminAcc = accounts.find(a => a.username === 'wuxin209') || { username: 'wuxin209', role: 'super_admin' };
+      adminAcc.role = 'super_admin';
+      const token = await createSession(context.env, adminAcc);
       return new Response(JSON.stringify({
         success: true, token, username, role: 'super_admin', message: '登录成功'
       }), { headers: corsHeaders });
@@ -66,7 +69,7 @@ export async function onRequestPost(context) {
     account.lastLogin = new Date().toISOString();
     await saveAccounts(context.env, accounts, sha);
 
-    const token = btoa(username + ':' + Date.now()) + '.' + btoa(Math.random().toString(36));
+    const token = await createSession(context.env, account);
     return new Response(JSON.stringify({
       success: true, token, username, role: account.role || 'user', message: '登录成功'
     }), { headers: corsHeaders });
