@@ -72,8 +72,8 @@ function makeLiveItem(country, flag, title, source) {
 }
 
 // Google 标题的"商品/消费"相关性过滤：只留购物消费类，剔除娱乐/音乐/影视/政治/体育等噪声
-const PRODUCT_HINT = /商品|売れ|ベスト|ヒット|買|ギフト|コスメ|雑貨|通販|상품|베스트|인기|쇼핑|코스메|สินค้า|ขายดี|ช้อป|ของกิน|best[\s-]?sell|product|products|amazon|tiktok shop|gift|gadget|\bbuy\b|deal|movers|costco|retail|consumer|launch|brand|viral item/i;
-const NOISE = /歌|曲|アニメ|映画|ドラマ|歌手|メンバー|ライブ|コンサート|アイドル|俳優|女優|노래|아이돌|드라마|영화|가수|콘서트|เพลง|ดารา|song|music|album|movie|film|celebrity|election|politic|trump|biden|war|\bgame\b|match|score|actor|singer|concert|trailer|anime/i;
+const PRODUCT_HINT = /商品|売れ|ベスト|ヒット|買|ギフト|コスメ|雑貨|通販|グッズ|상품|베스트|인기|쇼핑|코스메|สินค้า|ขายดี|ช้อป|ของกิน|best[\s-]?sell|product|products|amazon|tiktok shop|gift|gadget|\bbuy\b|deal|movers|costco|retail|consumer|launch|brand|viral item/i;
+const NOISE = /歌|曲|アニメ|映画|ドラマ|歌手|メンバー|ライブ|コンサート|アイドル|俳優|女優|文庫|書籍|コミック|単行本|新書|ノベライト|노래|아이돌|드라마|영화|가수|콘서트|เพลง|ดารา|song|music|album|movie|film|celebrity|election|politic|trump|biden|war|\bgame\b|match|score|actor|singer|concert|trailer|anime/i;
 function isProductTitle(t) {
   if (NOISE.test(t) && !/product|商品|상품|สินค้า|best[\s-]?sell/i.test(t)) return false;
   return PRODUCT_HINT.test(t);
@@ -90,27 +90,22 @@ function parseGoogleRss(xml) {
   }
   return out;
 }
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function googleFor(cfg) {
   const out = [];
   const seen = new Set();
   const win = cfg.win || '14d';
-  async function runOnce() {
-    for (const q of cfg.q) { // 顺序请求，避免并发被 Google 限流
-      try {
-        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + win)}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
-        const xml = await fetchText(url, 8000);
-        for (const t of parseGoogleRss(xml).slice(0, 6)) {
-          const k = t.slice(0, 18);
-          if (seen.has(k)) continue;
-          seen.add(k); out.push(t);
-        }
-      } catch (e) {}
-      await sleep(120);
-    }
-  }
-  await runOnce();
-  if (out.length === 0) { await sleep(400); await runOnce(); } // 全空重试一次
+  // 并发请求、整体最多等 ~9s，保证接口快速返回；拿不到就交给精选兜底，绝不拖垮函数
+  await Promise.all(cfg.q.map(async (q) => {
+    try {
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + win)}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
+      const xml = await fetchText(url, 7000);
+      for (const t of parseGoogleRss(xml).slice(0, 6)) {
+        const k = t.slice(0, 18);
+        if (seen.has(k)) continue;
+        seen.add(k); out.push(t);
+      }
+    } catch (e) {}
+  }));
   return out;
 }
 
@@ -190,7 +185,7 @@ function rotateFloor(list, doy, n) {
   return out;
 }
 
-export async function onRequestGet({ request }) {
+async function handle({ request }) {
   const url = new URL(request.url);
   let country = url.searchParams.get('country') || '美国';
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '6', 10) || 6, 12);
@@ -201,7 +196,7 @@ export async function onRequestGet({ request }) {
 
   if (!refresh) {
     const hit = mem.get(country);
-    if (hit && Date.now() - hit.t < CACHE_TTL) {
+    if (hit && Date.now() - hit.t < hit.ttl) {
       return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
   }
@@ -249,8 +244,20 @@ export async function onRequestGet({ request }) {
     liveCount: live.length, items,
     updated: new Date().toLocaleString('zh-CN')
   };
-  mem.set(country, { t: Date.now(), data: result });
+  // 有实时数据缓存30分钟；纯兜底只缓存5分钟，便于联网恢复后尽快回到实时
+  mem.set(country, { t: Date.now(), ttl: live.length ? CACHE_TTL : 5 * 60 * 1000, data: result });
   return new Response(JSON.stringify(result), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
+}
+
+// 顶层兜底：任何意外都返回 JSON（items 为空时前端自动回退本地池），绝不返回 HTML/空响应导致白屏
+export async function onRequestGet(ctx) {
+  try {
+    return await handle(ctx);
+  } catch (e) {
+    return new Response(JSON.stringify({ source: 'error', items: [], count: 0, liveCount: 0, error: String(e && e.message || e), updated: new Date().toLocaleString('zh-CN') }), {
+      status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
 }
