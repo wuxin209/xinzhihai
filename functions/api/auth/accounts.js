@@ -33,8 +33,10 @@ export async function onRequestPost(context) {
     const body = await context.request.json().catch(() => ({}));
     const { action, username, password, adminUser } = body;
 
-    // 简单验证：只有wuxin209能管理
-    if (adminUser !== 'wuxin209') {
+    // 必须是登录的超级主账号（JWT 校验），兼容旧的 adminUser 字段
+    const auth = await authenticateLite(context.request, context.env);
+    if (!auth) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: corsHeaders });
+    if (auth.role !== 'super_admin' || adminUser !== 'wuxin209') {
       return new Response(JSON.stringify({ error: '无权限' }), { status: 403, headers: corsHeaders });
     }
 
