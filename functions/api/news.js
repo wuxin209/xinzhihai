@@ -147,7 +147,7 @@ async function fetchGoogleNews() {
   await Promise.all(queries.map(async (q) => {
     try {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:5d')}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
-      const xml = await fetchText(url, 7000);
+      const xml = await fetchText(url, 5200);
       for (const it of parseGoogleRss(xml).slice(0, 3)) {
         const key = it.title.slice(0, 16);
         if (seen.has(key)) continue;
@@ -191,45 +191,71 @@ function dedupe(items) {
   });
 }
 
-export async function onRequestGet() {
-  if (cacheData && Date.now() - cacheTime < CACHE_TTL) {
-    return new Response(JSON.stringify({ ...cacheData, cached: true }), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
-  }
-  const doy = dayOfYear();
-  const sources = [];
+const NEWS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+const EDGE_CACHE_KEY = 'https://xinzhihai.internal/cache/api-news';
 
-  // ① 主源：AMZ123 跨境早报 + TT123 TikTok资讯（并行）
-  const [zb, tt] = await Promise.all([
-    fetchText('https://www.amz123.com/zb').then(h => parseNav(h, 'AMZ123早报', 'amz123').slice(0, 8)).catch(() => []),
-    fetchText('https://www.tt123.com/t/').then(h => parseNav(h, 'TT123', 'tt123').slice(0, 5)).catch(() => [])
-  ]);
+// 所有源并行抓取（每个源各自超时封顶），到点用已抓到的部分，绝不串行累加耗时
+async function collectAll(doy) {
+  const sources = [];
+  const tasks = [
+    fetchText('https://www.amz123.com/zb', 5600).then(h => parseNav(h, 'AMZ123早报', 'amz123').slice(0, 8)).catch(() => []),
+    fetchText('https://www.tt123.com/t/', 5600).then(h => parseNav(h, 'TT123', 'tt123').slice(0, 5)).catch(() => []),
+    (doy % 3 === 1
+      ? fetchText('https://www.cifnews.com', 5600).then(h => parseCifnews(h).slice(0, 1)).catch(() => [])
+      : Promise.resolve([])),
+    (doy % 2 === 0
+      ? fetchText('https://www.wearesellers.com/m', 5600).then(h => {
+          const all = parseWeAreSellers(h);
+          return all.slice(doy % Math.max(1, all.length), (doy % Math.max(1, all.length)) + 1);
+        }).catch(() => [])
+      : Promise.resolve([])),
+    fetchGoogleNews().catch(() => [])
+  ];
+  let settled;
+  try {
+    // 每个源各自 5.6s 封顶（见 fetchText / fetchGoogleNews），并行后整体不超过约 5.6s
+    settled = await Promise.allSettled(tasks);
+  } catch (e) {
+    settled = tasks.map(() => ({ status: 'fulfilled', value: [] }));
+  }
+  const val = i => {
+    const r = settled[i];
+    return (r && r.status === 'fulfilled' && Array.isArray(r.value)) ? r.value : [];
+  };
+  const zb = val(0), tt = val(1), cif = val(2), was = val(3), g = val(4);
   if (zb.length) sources.push('AMZ123早报');
   if (tt.length) sources.push('TT123');
-  let pool = dedupe([...zb.map(toItem), ...tt.map(toItem)]);
-
-  // ② 偶尔补充：雨果网(每3天)、知无不言(每2天错开)，每次最多1条，绝不占大比例
-  const extras = [];
-  if (doy % 3 === 1) {
-    const cif = await fetchText('https://www.cifnews.com').then(h => parseCifnews(h).slice(0, 1)).catch(() => []);
-    if (cif.length) sources.push('雨果网');
-    extras.push(...cif.map(toItem));
-  }
-  if (doy % 2 === 0) {
-    const was = await fetchText('https://www.wearesellers.com/m').then(h => {
-      const all = parseWeAreSellers(h);
-      return all.slice(doy % Math.max(1, all.length), (doy % Math.max(1, all.length)) + 1);
-    }).catch(() => []);
-    if (was.length) sources.push('知无不言');
-    extras.push(...was.map(toItem));
-  }
-  pool = dedupe([...pool, ...extras]);
-
-  // ③ Google News 补海关/外贸实时内容
-  const g = await fetchGoogleNews().catch(() => []);
+  if (cif.length) sources.push('雨果网');
+  if (was.length) sources.push('知无不言');
   if (g.length) sources.push('GoogleNews');
-  pool = dedupe([...pool, ...g.map(toItem)]);
+  const pool = dedupe([...zb.map(toItem), ...tt.map(toItem), ...cif.map(toItem), ...was.map(toItem), ...g.map(toItem)]);
+  return { pool, sources };
+}
+
+export async function onRequestGet() {
+  // ① 实例内内存缓存
+  if (cacheData && Date.now() - cacheTime < CACHE_TTL) {
+    return new Response(JSON.stringify({ ...cacheData, cached: true }), { headers: NEWS_HEADERS });
+  }
+  // ② 跨 isolate 的边缘缓存，避免每个冷实例都重新抓 10 秒+
+  try {
+    const hit = await caches.default.match(EDGE_CACHE_KEY);
+    if (hit) {
+      const j = await hit.json();
+      if (j && j.__t && Date.now() - j.__t < CACHE_TTL) {
+        cacheData = j; cacheTime = j.__t;
+        const { __t, ...pub } = j;
+        return new Response(JSON.stringify({ ...pub, cached: true }), { headers: NEWS_HEADERS });
+      }
+    }
+  } catch (e) {}
+
+  const doy = dayOfYear();
+  let pool = [], sources = [];
+  try {
+    const r = await collectAll(doy);
+    pool = r.pool; sources = r.sources;
+  } catch (e) { pool = []; sources = []; }
 
   const isPolicy = t => ['海关要闻', '政策法规', '合规预警'].includes(t);
   const TOTAL = 15, POLICY_MIN = 4;
@@ -260,9 +286,10 @@ export async function onRequestGet() {
 
   let news = balanceByTag(dedupe([...policyBlock, ...otherBlock])).slice(0, TOTAL);
   const source = sources.length ? 'live:' + sources.join('+') : 'curated';
-  const result = { source, count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN') };
+  const result = { source, count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN'), __t: Date.now() };
   cacheData = result; cacheTime = Date.now();
-  return new Response(JSON.stringify(result), {
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-  });
+  // 写跨 isolate 边缘缓存（容错，失败不影响返回）
+  try { caches.default.put(EDGE_CACHE_KEY, new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
+  const { __t, ...pub } = result;
+  return new Response(JSON.stringify(pub), { headers: NEWS_HEADERS });
 }
