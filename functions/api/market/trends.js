@@ -32,11 +32,11 @@ function dayOfYear() {
 
 // 五国元信息：flag + Google News 地区/语言 + 实时查询词 + 中文行业稿相关性正则（避免把同一篇全球通稿塞给每个国家）
 const COUNTRY = {
-  美国:   { flag: '🇺🇸', gl: 'US', hl: 'en-US', ceid: 'US:en',  q: ['Amazon best selling trending products', 'TikTok made me buy it products', 'Amazon movers and shakers trending'], rel: /美国|美区|美站|北美|美元|U\.?S\.?A?|American/i },
-  加拿大: { flag: '🇨🇦', gl: 'CA', hl: 'en-CA', ceid: 'CA:en',  q: ['trending products Canada online shopping', 'Amazon Canada best sellers trending', 'TikTok shop Canada trending products'], rel: /加拿大|加国|加站|Canada|Canadian/i },
-  日本:   { flag: '🇯🇵', gl: 'JP', hl: 'ja',    ceid: 'JP:ja',  q: ['Amazon 売れ筋 トレンド 商品', 'TikTok バズった 商品', '楽天 人気 トレンド 商品'], rel: /日本|日亚|日系|乐天|Japan|Japanese|円/i },
-  韩国:   { flag: '🇰🇷', gl: 'KR', hl: 'ko',    ceid: 'KR:ko',  q: ['쿠팡 베스트 상품 트렌드', '틱톡 인기 상품', '해외직구 인기 상품 트렌드'], rel: /韩国|韩区|韩站|酷胖|Coupang|Korea|Korean|원/i },
-  泰国:   { flag: '🇹🇭', gl: 'TH', hl: 'th',    ceid: 'TH:th',  q: ['TikTok Shop สินค้าขายดี มาแรง', 'สินค้าออนไลน์ มาแรง นิยม', 'Shopee Lazada สินค้าขายดี'], rel: /泰国|泰区|泰站|东南亚|Thailand|Thai|Shopee|Lazada|บาท/i }
+  美国:   { flag: '🇺🇸', gl: 'US', hl: 'en-US', ceid: 'US:en',  win: '7d',  q: ['Amazon best sellers', 'TikTok made me buy it', 'Amazon movers and shakers', 'trending products 2026'], rel: /美国|美区|美站|北美|美元|U\.?S\.?A?|American/i },
+  加拿大: { flag: '🇨🇦', gl: 'CA', hl: 'en-CA', ceid: 'CA:en',  win: '14d', q: ['Amazon Canada best sellers', 'trending products Canada', 'TikTok shop Canada'], rel: /加拿大|加国|加站|Canada|Canadian/i },
+  日本:   { flag: '🇯🇵', gl: 'JP', hl: 'ja',    ceid: 'JP:ja',  win: '14d', q: ['Amazon 売れ筋', 'TikTok バズ', 'トレンド 商品', '楽天 売れ筋'], rel: /日本|日亚|日系|乐天|Japan|Japanese|円/i },
+  韩国:   { flag: '🇰🇷', gl: 'KR', hl: 'ko',    ceid: 'KR:ko',  win: '14d', q: ['쿠팡 베스트', '틱톡 인기 상품', '해외직구 인기', '쇼핑 트렌드'], rel: /韩国|韩区|韩站|酷胖|Coupang|Korea|Korean|원/i },
+  泰国:   { flag: '🇹🇭', gl: 'TH', hl: 'th',    ceid: 'TH:th',  win: '14d', q: ['TikTok Shop ขายดี', 'สินค้ามาแรง', 'Shopee ขายดี', 'Lazada ขายดี'], rel: /泰国|泰区|泰站|东南亚|Thailand|Thai|Shopee|Lazada|บาท/i }
 };
 
 // 从标题推断平台/货型/热度
@@ -88,9 +88,9 @@ async function googleFor(cfg) {
   const seen = new Set();
   await Promise.all(cfg.q.map(async (q) => {
     try {
-      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:7d')}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
-      const xml = await fetchText(url, 7000);
-      for (const t of parseGoogleRss(xml).slice(0, 5)) {
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + (cfg.win || '14d'))}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
+      const xml = await fetchText(url, 8000);
+      for (const t of parseGoogleRss(xml).slice(0, 6)) {
         const k = t.slice(0, 18);
         if (seen.has(k)) continue;
         seen.add(k); out.push(t);
