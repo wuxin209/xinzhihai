@@ -1,13 +1,17 @@
 // 账号管理接口 - 主账号查看/管理所有子账号
 import { getAccounts, saveAccounts, hashPassword, corsHeaders } from '../_config.js';
+import { authenticate } from '../../_lib.js';
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: corsHeaders });
 }
 
-// GET - 获取账号列表
+// GET - 获取账号列表（仅超级主账号，禁止匿名枚举）
 export async function onRequestGet(context) {
   try {
+    const auth = await authenticate(context.request, context.env);
+    if (!auth) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: corsHeaders });
+    if (auth.role !== 'super_admin') return new Response(JSON.stringify({ error: '无权限' }), { status: 403, headers: corsHeaders });
     const { accounts } = await getAccounts(context.env);
     // 不返回密码哈希
     const safeAccounts = accounts.map(a => ({
