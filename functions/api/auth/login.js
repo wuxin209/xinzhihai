@@ -75,7 +75,7 @@ export async function onRequestPost(context) {
     }
     const token = session;
     return new Response(JSON.stringify({
-      success: true, token, username, role: account.role || 'user', message: '登录成功'
+      success: true, token, username, role: account.role || 'user', message: '登录成功', kv: !!(context.env && context.env.XINZHAI_KV)
     }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
