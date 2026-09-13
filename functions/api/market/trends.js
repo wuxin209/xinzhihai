@@ -71,6 +71,13 @@ function makeLiveItem(country, flag, title, source) {
   };
 }
 
+// Google 标题的"商品/消费"相关性过滤：只留购物消费类，剔除娱乐/音乐/影视/政治/体育等噪声
+const PRODUCT_HINT = /商品|売れ|ベスト|ヒット|買|ギフト|コスメ|雑貨|通販|상품|베스트|인기|쇼핑|코스메|สินค้า|ขายดี|ช้อป|ของกิน|best[\s-]?sell|product|products|amazon|tiktok shop|gift|gadget|\bbuy\b|deal|movers|costco|retail|consumer|launch|brand|viral item/i;
+const NOISE = /歌|曲|アニメ|映画|ドラマ|歌手|メンバー|ライブ|コンサート|アイドル|俳優|女優|노래|아이돌|드라마|영화|가수|콘서트|เพลง|ดารา|song|music|album|movie|film|celebrity|election|politic|trump|biden|war|\bgame\b|match|score|actor|singer|concert|trailer|anime/i;
+function isProductTitle(t) {
+  if (NOISE.test(t) && !/product|商品|상품|สินค้า|best[\s-]?sell/i.test(t)) return false;
+  return PRODUCT_HINT.test(t);
+}
 // 解析 Google News RSS
 function parseGoogleRss(xml) {
   const out = [];
@@ -79,24 +86,31 @@ function parseGoogleRss(xml) {
     const m = b.match(/<title>([\s\S]*?)<\/title>/);
     if (!m) continue;
     const title = cleanTitle(m[1]).replace(/\s*[-–—]\s*[^-–—]+$/, '');
-    if (title.length >= 8) out.push(title);
+    if (title.length >= 8 && isProductTitle(title)) out.push(title);
   }
   return out;
 }
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function googleFor(cfg) {
   const out = [];
   const seen = new Set();
-  await Promise.all(cfg.q.map(async (q) => {
-    try {
-      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + (cfg.win || '14d'))}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
-      const xml = await fetchText(url, 8000);
-      for (const t of parseGoogleRss(xml).slice(0, 6)) {
-        const k = t.slice(0, 18);
-        if (seen.has(k)) continue;
-        seen.add(k); out.push(t);
-      }
-    } catch (e) {}
-  }));
+  const win = cfg.win || '14d';
+  async function runOnce() {
+    for (const q of cfg.q) { // 顺序请求，避免并发被 Google 限流
+      try {
+        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + win)}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
+        const xml = await fetchText(url, 8000);
+        for (const t of parseGoogleRss(xml).slice(0, 6)) {
+          const k = t.slice(0, 18);
+          if (seen.has(k)) continue;
+          seen.add(k); out.push(t);
+        }
+      } catch (e) {}
+      await sleep(120);
+    }
+  }
+  await runOnce();
+  if (out.length === 0) { await sleep(400); await runOnce(); } // 全空重试一次
   return out;
 }
 
