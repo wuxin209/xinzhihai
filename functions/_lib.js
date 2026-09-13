@@ -75,16 +75,15 @@ function getIP(request) {
   return request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || 'unknown';
 }
 
-// 认证中间件
+// 认证中间件（依赖 KV 用户档案；当前线上未绑定 KV，新代码统一用 authenticateLite）
 async function authenticate(request, env) {
   const auth = request.headers.get('Authorization');
   if (!auth || !auth.startsWith('Bearer ')) return null;
   const token = auth.slice(7);
-  const secret = env.JWT_SECRET || 'xinzhihai-default-secret-change-me';
+  const secret = (env && env.JWT_SECRET) || 'xinzhihai-default-secret-change-me';
   const payload = await verifyJWT(token, secret);
   if (!payload) return null;
   if (!env || !env.XINZHAI_KV) return null;
-  // 检查token版本
   const userStr = await env.XINZHAI_KV.get(`user:${payload.username}`);
   if (!userStr) return null;
   const user = JSON.parse(userStr);
@@ -92,22 +91,21 @@ async function authenticate(request, env) {
   return { ...payload, user };
 }
 
-// 建立登录会话：把用户档案写入 KV（供 authenticate / 团队列表读取），并签发真正的 JWT
-// 修复历史问题：login/register 原签发不可校验的 btoa 令牌且不写 KV，导致 authenticate 永远 401、云同步与团队管理失效
+// 轻量认证：只校验 JWT 签名，不依赖 KV（账号状态在登录时已校验；禁用在重新登录时生效）
+async function authenticateLite(request, env) {
+  const auth = request.headers.get('Authorization');
+  if (!auth || !auth.startsWith('Bearer ')) return null;
+  const token = auth.slice(7);
+  const secret = (env && env.JWT_SECRET) || 'xinzhihai-default-secret-change-me';
+  const payload = await verifyJWT(token, secret);
+  if (!payload || !payload.username) return null;
+  return payload;
+}
+
+// 建立登录会话：签发真正可校验的 JWT（不依赖 KV；用户档案以 GitHub 私有仓 accounts.json 为准）
 async function createSession(env, account) {
   const role = account.role || 'user';
   const tv = account.tokenVersion || 0;
-  const rec = {
-    username: account.username,
-    nickname: account.nickname || account.username,
-    role,
-    status: account.status || 'active',
-    createdAt: account.createdAt || new Date().toISOString(),
-    lastLogin: new Date().toISOString(),
-    tokenVersion: tv
-  };
-  try { if (env && env.XINZHAI_KV) await env.XINZHAI_KV.put(`user:${account.username}`, JSON.stringify(rec)); }
-  catch (e) { return { __kvError: String(e && e.message || e), __rec: rec }; }
   const secret = (env && env.JWT_SECRET) || 'xinzhihai-default-secret-change-me';
   return await signJWT({ username: account.username, role, tv }, secret);
 }
@@ -119,4 +117,4 @@ function hexToBuf(hex) {
   return new Uint8Array(hex.match(/.{2}/g).map(b => parseInt(b, 16)));
 }
 
-export { json, handleOptions, hashPassword, verifyPassword, signJWT, verifyJWT, createSession, getFingerprint, getIP, authenticate, CORS };
+export { json, handleOptions, hashPassword, verifyPassword, signJWT, verifyJWT, createSession, authenticateLite, getFingerprint, getIP, authenticate, CORS };

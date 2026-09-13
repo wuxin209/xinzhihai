@@ -69,13 +69,9 @@ export async function onRequestPost(context) {
     account.lastLogin = new Date().toISOString();
     await saveAccounts(context.env, accounts, sha);
 
-    const session = await createSession(context.env, account);
-    if (session && session.__kvError) {
-      return new Response(JSON.stringify({ error: 'KV写入失败', detail: session.__kvError, hasBinding: !!(context.env && context.env.XINZHAI_KV) }), { status: 500, headers: corsHeaders });
-    }
-    const token = session;
+    const token = await createSession(context.env, account);
     return new Response(JSON.stringify({
-      success: true, token, username, role: account.role || 'user', message: '登录成功', kv: !!(context.env && context.env.XINZHAI_KV)
+      success: true, token, username, role: account.role || 'user', message: '登录成功'
     }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
