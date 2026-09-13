@@ -30,13 +30,13 @@ function dayOfYear() {
   return Math.floor((now - start) / 86400000);
 }
 
-// 五国元信息：flag + Google News 地区/语言 + 实时查询词
+// 五国元信息：flag + Google News 地区/语言 + 实时查询词 + 中文行业稿相关性正则（避免把同一篇全球通稿塞给每个国家）
 const COUNTRY = {
-  美国:   { flag: '🇺🇸', gl: 'US', hl: 'en-US', ceid: 'US:en',  q: ['Amazon best selling trending products', 'TikTok made me buy it products', 'Amazon movers and shakers trending'] },
-  加拿大: { flag: '🇨🇦', gl: 'CA', hl: 'en-CA', ceid: 'CA:en',  q: ['trending products Canada online shopping', 'Amazon Canada best sellers trending', 'TikTok shop Canada trending products'] },
-  日本:   { flag: '🇯🇵', gl: 'JP', hl: 'ja',    ceid: 'JP:ja',  q: ['Amazon 売れ筋 トレンド 商品', 'TikTok バズった 商品', '楽天 人気 トレンド 商品'] },
-  韩国:   { flag: '🇰🇷', gl: 'KR', hl: 'ko',    ceid: 'KR:ko',  q: ['쿠팡 베스트 상품 트렌드', '틱톡 인기 상품', '해외직구 인기 상품 트렌드'] },
-  泰国:   { flag: '🇹🇭', gl: 'TH', hl: 'th',    ceid: 'TH:th',  q: ['TikTok Shop สินค้าขายดี มาแรง', 'สินค้าออนไลน์ มาแรง นิยม', 'Shopee Lazada สินค้าขายดี'] }
+  美国:   { flag: '🇺🇸', gl: 'US', hl: 'en-US', ceid: 'US:en',  q: ['Amazon best selling trending products', 'TikTok made me buy it products', 'Amazon movers and shakers trending'], rel: /美国|美区|美站|北美|美元|U\.?S\.?A?|American/i },
+  加拿大: { flag: '🇨🇦', gl: 'CA', hl: 'en-CA', ceid: 'CA:en',  q: ['trending products Canada online shopping', 'Amazon Canada best sellers trending', 'TikTok shop Canada trending products'], rel: /加拿大|加国|加站|Canada|Canadian/i },
+  日本:   { flag: '🇯🇵', gl: 'JP', hl: 'ja',    ceid: 'JP:ja',  q: ['Amazon 売れ筋 トレンド 商品', 'TikTok バズった 商品', '楽天 人気 トレンド 商品'], rel: /日本|日亚|日系|乐天|Japan|Japanese|円/i },
+  韩国:   { flag: '🇰🇷', gl: 'KR', hl: 'ko',    ceid: 'KR:ko',  q: ['쿠팡 베스트 상품 트렌드', '틱톡 인기 상품', '해외직구 인기 상품 트렌드'], rel: /韩国|韩区|韩站|酷胖|Coupang|Korea|Korean|원/i },
+  泰国:   { flag: '🇹🇭', gl: 'TH', hl: 'th',    ceid: 'TH:th',  q: ['TikTok Shop สินค้าขายดี มาแรง', 'สินค้าออนไลน์ มาแรง นิยม', 'Shopee Lazada สินค้าขายดี'], rel: /泰国|泰区|泰站|东南亚|Thailand|Thai|Shopee|Lazada|บาท/i }
 };
 
 // 从标题推断平台/货型/热度
@@ -109,7 +109,7 @@ function parseNavTitles(html, host) {
     const tm = m[0].match(/title="([^"]+)"/) || m[0].match(/data-sdk-resource-id="([^"]+)"/);
     if (!tm) continue;
     const title = decodeEntities(tm[1]);
-    if (/选品|爆品|趋势|热销|榜单|品类|蓝海|风口|增长|走红|出圈|卖爆|爆款/.test(title)) out.push(title);
+    if (/选品|爆品|趋势|热销|热搜|搜索量|销量|增速|榜单|品类|蓝海|风口|增长|走红|出圈|爆发|爆单|带货|卖爆|爆款|热门|人气|バズ|ベスト|베스트|히트|ขายดี|มาแรง/.test(title)) out.push(title);
   }
   return out;
 }
@@ -215,8 +215,10 @@ export async function onRequestGet({ request }) {
       fetchText('https://www.amz123.com/zb', 7000).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
       fetchText('https://www.tt123.com/t/', 7000).then(h => parseNavTitles(h, 'tt123')).catch(() => [])
     ]);
-    if (zb.length) { sources.push('AMZ123'); zb.slice(0, 4).forEach(t => pushLive(t, 'AMZ123早报')); }
-    if (tt.length) { sources.push('TT123'); tt.slice(0, 4).forEach(t => pushLive(t, 'TT123')); }
+    const rel = cfg.rel;
+    const pick = (arr, src) => arr.filter(t => rel.test(t)).slice(0, 4).forEach(t => pushLive(t, src));
+    if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
+    if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
   } catch (e) {}
 
   // ③ 精选兜底按日期轮换，补足到 limit
