@@ -24,7 +24,7 @@ export async function onRequestGet() {
     cacheData = result;
     cacheTime = Date.now();
     return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'x-api-rev': 'r3-canary' }
     });
   } catch (e) {
     return new Response(JSON.stringify({ source: 'fallback', USD: 6.79, CAD: 4.96, AUD: 4.78, JPY: 0.0425, KRW: 0.0048, THB: 0.204, error: e.message }), {
