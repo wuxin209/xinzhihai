@@ -61,16 +61,36 @@ export async function getAccounts(env) {
   }
 }
 
-// 写入账号数据
+// 写入账号数据（带重试：GitHub contents 接口偶发 5xx / 403 "Timed out validating rule" / 409 sha 冲突）
 export async function saveAccounts(env, accounts, sha) {
   const token = getGithubToken(env);
+  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`;
   const content = utf8ToBase64(JSON.stringify({ accounts }, null, 2));
-  const resp = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-    method: 'PUT',
-    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' },
-    body: JSON.stringify({ message: `更新账号数据 ${new Date().toISOString()}`, content, sha })
-  });
-  return resp.ok;
+  let curSha = sha;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const resp = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' },
+        body: JSON.stringify({ message: `更新账号数据 ${new Date().toISOString()}`, content, sha: curSha })
+      });
+      if (resp.ok) return true;
+      let errBody = {};
+      try { errBody = await resp.json(); } catch (_) {}
+      // 409=sha过期：重新拉取最新sha再试
+      if (resp.status === 409 || (errBody.message || '').toLowerCase().includes('sha')) {
+        const latest = await getAccounts(env);
+        if (latest.sha) curSha = latest.sha;
+      }
+      // 可重试状态：5xx 与规则校验超时(403)
+      const retryable = resp.status >= 500 || (resp.status === 403 && /timed out|rule/i.test(errBody.message || ''));
+      if (!retryable) return false;
+    } catch (_) {
+      // 网络抖动，继续重试
+    }
+    await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+  }
+  return false;
 }
 
 // CORS headers
