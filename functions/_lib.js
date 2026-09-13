@@ -106,7 +106,8 @@ async function createSession(env, account) {
     lastLogin: new Date().toISOString(),
     tokenVersion: tv
   };
-  try { if (env && env.XINZHAI_KV) await env.XINZHAI_KV.put(`user:${account.username}`, JSON.stringify(rec)); } catch (_) {}
+  try { if (env && env.XINZHAI_KV) await env.XINZHAI_KV.put(`user:${account.username}`, JSON.stringify(rec)); }
+  catch (e) { return { __kvError: String(e && e.message || e), __rec: rec }; }
   const secret = (env && env.JWT_SECRET) || 'xinzhihai-default-secret-change-me';
   return await signJWT({ username: account.username, role, tv }, secret);
 }
