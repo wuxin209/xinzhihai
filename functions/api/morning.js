@@ -117,7 +117,7 @@ function classify(title, sourceName) {
 }
 
 async function fetchNavSite(url, sourceName, limit) {
-  const resp = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(9000) });
+  const resp = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(5500) });
   if (!resp.ok) throw new Error(sourceName + ' HTTP ' + resp.status);
   const html = await resp.text();
   return parseNavSite(html, sourceName).slice(0, limit).map(it => {
@@ -159,7 +159,7 @@ async function fetchGoogleNews() {
   await Promise.all(queries.map(async (q) => {
     try {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:7d')}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(8000) });
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
       if (!resp.ok) return;
       const items = parseGoogleRss(await resp.text()).slice(0, 4);
       for (const it of items) {
@@ -199,11 +199,15 @@ export async function onRequestGet() {
     });
   }
 
-  // ① 抓取 AMZ123(亚马逊为主) + TT123(TikTok为主)，多抓一些
-  const [amz, tt] = await Promise.all([
-    fetchNavSite('https://www.amz123.com/kx', 'AMZ123', 11).catch(() => []),
-    fetchNavSite('https://www.tt123.com/t/', 'TT123', 13).catch(() => [])
-  ]);
+  // ① 三源并行 + 6s 硬墙：到点用已抓到的，未返回的源放弃，绝不串行累加耗时
+  const got = { amz: [], tt: [], g: [] };
+  const jobs = [
+    fetchNavSite('https://www.amz123.com/kx', 'AMZ123', 11).then(v => { got.amz = Array.isArray(v) ? v : []; }).catch(() => {}),
+    fetchNavSite('https://www.tt123.com/t/', 'TT123', 13).then(v => { got.tt = Array.isArray(v) ? v : []; }).catch(() => {}),
+    fetchGoogleNews().then(v => { got.g = Array.isArray(v) ? v : []; }).catch(() => {})
+  ];
+  await Promise.race([Promise.all(jobs), new Promise(res => setTimeout(res, 6000))]);
+  const amz = got.amz, tt = got.tt, g = got.g;
   let news = [...amz, ...tt];
 
   // 跨来源标题去重（姐妹站会发同文）
@@ -220,7 +224,6 @@ export async function onRequestGet() {
   if (tt.length) sources.push('TT123');
 
   // ② Google News 补充（含 Coupang 查询）
-  const g = await fetchGoogleNews().catch(() => []);
   if (g.length) sources.push('GoogleNews');
   const gExist = new Set(news.map(n => (n.title || '').slice(0, 14)));
   for (const it of g) { if (news.length >= 24) break; if (!gExist.has(it.title.slice(0, 14))) news.push(it); }
