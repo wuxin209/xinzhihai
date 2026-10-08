@@ -29,38 +29,61 @@ const DISASTER_WORDS = [
   [/monsoon|季风/i, '季风暴雨']
 ];
 const DISASTER_QUERIES = [
-  { flag: '🇹🇭', country: '泰国', region: '曼谷', priority: 1, q: 'Bangkok flood OR Thailand flood OR 曼谷 水灾' },
-  { flag: '🇹🇭', country: '泰国', region: '泰国', priority: 2, q: 'Thailand flood OR storm OR landslide OR 泰国 洪水' },
-  { flag: '🇯🇵', country: '日本', region: '日本', priority: 3, q: 'Japan earthquake OR typhoon OR flood OR 日本 地震 台风' },
-  { flag: '🇺🇸', country: '美国', region: '美国', priority: 4, q: 'US hurricane OR wildfire OR flood OR 美国 飓风 山火' },
-  { flag: '🇨🇦', country: '加拿大', region: '加拿大', priority: 5, q: 'Canada wildfire OR flood OR storm OR 加拿大 山火' },
-  { flag: '🇰🇷', country: '韩国', region: '韩国', priority: 6, q: 'South Korea typhoon OR flood OR storm OR 韩国 台风 暴雨' }
+  { flag: '🇹🇭', country: '泰国', region: '曼谷', priority: 1, q: '曼谷 水灾', gq: 'Bangkok flood OR Bangkok flooding OR Bangkok inundation' },
+  { flag: '🇹🇭', country: '泰国', region: '泰国', priority: 2, q: '泰国 洪水', gq: 'Thailand flood OR Thailand storm' },
+  { flag: '🇯🇵', country: '日本', region: '日本', priority: 3, q: '日本 地震 台风', gq: 'Japan earthquake OR Japan typhoon' },
+  { flag: '🇺🇸', country: '美国', region: '美国', priority: 4, q: '美国 飓风 山火', gq: 'US hurricane OR US wildfire' },
+  { flag: '🇨🇦', country: '加拿大', region: '加拿大', priority: 5, q: '加拿大 山火', gq: 'Canada wildfire OR Canada flood' },
+  { flag: '🇰🇷', country: '韩国', region: '韩国', priority: 6, q: '韩国 台风 暴雨', gq: 'South Korea typhoon OR South Korea flood' }
 ];
+function pushHit(results, item, title, url, pd) {
+  const hit = DISASTER_WORDS.find(([re]) => re.test(title));
+  if (!hit) return false;
+  let time = '';
+  if (pd) {
+    const t = new Date(pd);
+    if (!isNaN(t)) time = t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+  results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title, time, url: url || '', priority: item.priority });
+  return true;
+}
 async function fetchDisasters() {
   const results = [];
   const tasks = DISASTER_QUERIES.map(async (item) => {
+    // 源1: Google News 简单中文查询（与news.js同环境，已证明可行）
     try {
       const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(3500) });
-      if (!resp.ok) return;
-      const xml = await resp.text();
-      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 8);
-      let added = 0;
-      for (const m of items) {
-        const title = ((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim();
-        const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
-        const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
-        const t = decodeEntities(title);
-        const hit = DISASTER_WORDS.find(([re]) => re.test(t));
-        if (!hit) continue;
-        const time = pd ? new Date(pd).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-        results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title: t, time, url: link, priority: item.priority });
-        added++;
-        if (added >= 3) break;
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4000) });
+      if (resp.ok) {
+        const xml = await resp.text();
+        const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10);
+        let added = 0;
+        for (const m of items) {
+          const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim());
+          const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
+          const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
+          if (title.length < 6) continue;
+          if (pushHit(results, item, title, link, pd)) { added++; if (added >= 3) break; }
+        }
+      }
+    } catch (e) {}
+    // 源2: GDELT 英文查询兜底
+    try {
+      const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent(item.gq) + '&mode=artlist&maxrecords=4&format=json&timespan=7d&sort=datedesc';
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4000) });
+      if (resp.ok) {
+        const j = await resp.json();
+        let added = 0;
+        for (const a of (j.articles || [])) {
+          const title = (a.title || '').trim();
+          if (title.length < 6) continue;
+          const pd = a.seendate ? a.seendate.slice(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') + 'T' + (a.seendate.slice(8, 12) || '0000').replace(/(\d{2})(\d{2})/, '$1:$2') + ':00' : '';
+          if (pushHit(results, item, title, a.url, pd)) { added++; if (added >= 3) break; }
+        }
       }
     } catch (e) {}
   });
-  await Promise.race([Promise.all(tasks), new Promise((res) => setTimeout(res, 4500))]);
+  await Promise.race([Promise.all(tasks), new Promise((res) => setTimeout(res, 5000))]);
   results.sort((a, b) => a.priority - b.priority);
   return results.slice(0, 8);
 }
