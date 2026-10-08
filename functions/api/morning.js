@@ -8,8 +8,8 @@ const CACHE_TTL = 30 * 60 * 1000; // 30分钟缓存
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
 // 每个平台每天的固定保底条数（合计约15）
-const FLOOR = { '亚马逊': 6, 'TikTok': 6, '酷胖': 3 };
-const PLATFORM_ORDER = ['亚马逊', 'TikTok', '酷胖'];
+const FLOOR = { '亚马逊': 8, 'TikTok': 7 };
+const PLATFORM_ORDER = ['亚马逊', 'TikTok'];
 
 function timeoutSignal(ms) {
   const ctrl = new AbortController();
@@ -39,16 +39,6 @@ const FALLBACK = {
     { flag: '🇹🇭', country: '泰国', title: 'TikTok Shop东南亚COD占比仍高，退货率与拒收率要计入定价', summary: '泰国、印尼、越南货到付款比例高，拒收和退货成本不可忽视，定价时预留退货损耗，优先做轻小件、低客单冲动消费品。', tag: '市场行情' },
     { flag: '🇺🇸', country: '美国', title: 'TikTok Shop商品卡与搜索广告权重提升，货架电商化加速', summary: '除了短视频和直播，商品卡、商城搜索流量占比上升，标题埋词、主图点击率、商品评分成为货架场景的核心排名因子。', tag: '平台动态' }
   ],
-  酷胖: [
-    { flag: '🇰🇷', country: '韩国', title: 'Coupang火箭增长计划持续，中国新卖家前3个月佣金减半', summary: 'Coupang针对中国新卖家提供前3个月佣金减免50%、物流补贴和广告金支持，美妆、家居、小家电品类增长最快，新店红利期要抓紧铺品起量。', tag: '平台动态' },
-    { flag: '🇰🇷', country: '韩国', title: 'Coupang酷澎火箭配送(Rocket)时效要求高，入仓时效决定曝光', summary: '酷胖把配送时效作为搜索权重核心，使用火箭配送/官方仓储的商品曝光更高，自发货要保证准时送达率，迟发会直接降权。', tag: '平台政策' },
-    { flag: '🇰🇷', country: '韩国', title: '韩国KC认证是电器类上架硬门槛，缺证会被下架', summary: '卖电器、带电池、儿童产品到韩国基本要有KC认证（部分可自我宣告），上架前确认类目认证要求，避免listing被下架或清关被扣。', tag: '合规预警' },
-    { flag: '🇰🇷', country: '韩国', title: 'Coupang C-ADS广告类似亚马逊SP，按点击付费是站内引流主力', summary: '酷胖智能广告C-ADS按点击付费，新手建议先开广泛词跑数据、再把高转化词转精准，韩国买家搜索词多为韩文，关键词要做本地化而非直译。', tag: '平台动态' },
-    { flag: '🇰🇷', country: '韩国', title: 'Coupang酷涨券/限时促销是韩国站爆单利器，配合节日节奏', summary: 'Rocket Wow Discount等官方优惠券会在前台突出展示，配合11月11日빼빼로日、年末送礼季等韩国本土节日设置折扣，转化率提升明显。', tag: '市场行情' },
-    { flag: '🇰🇷', country: '韩国', title: '韩国电商退货讲究快速响应，Coupang买家退款体验偏向买家', summary: '酷胖平台整体偏向买家，退货退款申请要快速处理，避免纠纷影响店铺评分；高客单产品上架前把退货损耗和韩国本地售后成本算进定价。', tag: '平台政策' },
-    { flag: '🇰🇷', country: '韩国', title: '中国卖家发韩国可走威海仓专线，时效与成本兼顾', summary: '国内多地有发往韩国的海运快线和威海仓中转，3-5天可达，比国际快递便宜，做酷胖自发货或补货海外仓可优先对比专线渠道。', tag: '市场行情' },
-    { flag: '🇰🇷', country: '韩国', title: '韩国买家重视详情页与评价，Naver风格详情更吃香', summary: '韩国消费者习惯看详细图文对比和真实评价，详情页建议参考Naver Smart Store风格，突出参数、尺寸、使用场景，并积极积累带图评价。', tag: '市场行情' }
-  ]
 };
 
 function decodeEntities(s) {
@@ -62,14 +52,14 @@ function decodeEntities(s) {
 // 平台归类：优先级 酷胖 > TikTok > 亚马逊；sourceName 提供初始倾向
 function platformOf(title, sourceName, country) {
   const t = title || '';
-  if (/Coupang|coupang|酷胖|酷澎|韩国|KC认证|Naver|首尔|釜山/.test(t)) return '酷胖';
+  if (/Coupang|coupang|酷胖|酷澎|韩国|KC认证|Naver|首尔|釜山/.test(t)) return null;
   if (sourceName === 'TT123') {
-    if (/Coupang|酷胖|酷澎|韩国/.test(t)) return '酷胖';
+    if (/Coupang|酷胖|酷澎|韩国/.test(t)) return null;
     return 'TikTok';
   }
   if (/TikTok|tiktok|抖音海外|短视频带货|达人联盟|东南亚|泰国|越南|印尼|马来|马来西亚|菲律宾|新加坡/.test(t)) return 'TikTok';
   if (/亚马逊|Amazon|amazon|FBA|FBM|BSA|泛欧|AWD|Prime|黑五|网一|listing|Listing|ASIN|贝索斯/.test(t)) return '亚马逊';
-  if (country === '韩国') return '酷胖';
+  if (country === '韩国') return null;
   if (country === 'TikTok' || country === '东南亚' || country === '日本' && /TikTok|tiktok/.test(t)) return 'TikTok';
   // AMZ123 来源默认亚马逊；其余默认亚马逊（早讯以跨境电商平台为主）
   return '亚马逊';
@@ -98,7 +88,7 @@ function classify(title, sourceName) {
   if (sourceName === 'TT123') {
     if (/泰国|越南|印尼|东南亚|马来|菲律宾/.test(title)) return { flag: '🇹🇭', country: '东南亚', tag: '市场行情' };
     if (/日本|乐天/.test(title)) return { flag: '🇯🇵', country: '日本', tag: '市场行情' };
-    if (/韩国|Coupang|酷胖|酷澎/.test(title)) return { flag: '🇰🇷', country: '韩国', tag: '市场行情' };
+    if (/韩国|Coupang|酷胖|酷澎/.test(title)) return null;
     if (/英国|德国|法国|欧洲|欧盟/.test(title)) return { flag: '🇪🇺', country: '欧美', tag: '市场行情' };
     return { flag: '🇺🇸', country: 'TikTok', tag: '平台动态' };
   }
@@ -106,7 +96,7 @@ function classify(title, sourceName) {
     [/海关|报关|出口|关税|总署/, ['🇨🇳', '中国', '海关要闻']],
     [/CPSC|召回|认证|合规|CE|FCC|UL|锂电池|TIC|责任险|EORI|IOSS|VAT|KC/, ['🇺🇸', '合规', '合规预警']],
     [/TikTok|tiktok|抖音海外/, ['🇹🇭', 'TikTok', '平台动态']],
-    [/Coupang|酷胖|酷澎|韩国/, ['🇰🇷', '韩国', '平台动态']],
+    [/Coupang|酷胖|酷澎|韩国/, null],
     [/日本|乐天/, ['🇯🇵', '日本', '市场行情']],
     [/泰国|越南|东南亚|印尼/, ['🇹🇭', '东南亚', '市场行情']],
     [/欧盟|欧洲|德国|法国|英国|意大利|西班牙|荷兰/, ['🇪🇺', '欧盟', '平台政策']],
@@ -122,9 +112,11 @@ async function fetchNavSite(url, sourceName, limit) {
   const html = await resp.text();
   return parseNavSite(html, sourceName).slice(0, limit).map(it => {
     const c = classify(it.title, sourceName);
+    if (!c) return null;
     const platform = platformOf(it.title, sourceName, c.country);
+    if (!platform) return null;
     return { flag: c.flag, country: c.country, title: it.title, summary: it.title + '（来源：' + sourceName + '）', tag: c.tag, time: '今日', origin: sourceName, platform };
-  });
+  }).filter(Boolean);
 }
 
 function parseGoogleRss(xml) {
@@ -153,7 +145,7 @@ function parseGoogleRss(xml) {
 
 async function fetchGoogleNews() {
   // 三个平台分别查询，保证酷胖也有联网补充
-  const queries = ['亚马逊卖家', 'TikTok Shop 跨境', 'Coupang 酷胖 韩国电商'];
+  const queries = ['亚马逊卖家', 'TikTok Shop 跨境 电商'];
   const seen = new Set();
   const out = [];
   await Promise.all(queries.map(async (q) => {
@@ -167,7 +159,9 @@ async function fetchGoogleNews() {
         if (seen.has(key)) continue;
         seen.add(key);
         const c = classify(it.title, '');
+        if (!c) continue;
         const platform = platformOf(it.title, '', c.country);
+        if (!platform) continue;
         out.push({ flag: c.flag, country: c.country, title: it.title, summary: it.summary, tag: c.tag, time: it.time, origin: 'GoogleNews', platform });
       }
     } catch (e) {}
