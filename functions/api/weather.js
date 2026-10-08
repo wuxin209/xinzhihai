@@ -51,7 +51,7 @@ async function fetchDisasters() {
   const results = [];
   const parseRss = (xml, item, cap) => {
     const arr = [];
-    for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10)) {
+    for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 12)) {
       if (arr.length >= cap) break;
       const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim());
       const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
@@ -65,25 +65,55 @@ async function fetchDisasters() {
     }
     return arr;
   };
-  const fetchRss = async (item, kind) => {
-    try {
-      const url = kind === 'bing'
-        ? 'https://www.bing.com/news/search?q=' + encodeURIComponent(item.q) + '&format=RSS&mkt=zh-CN'
-        : 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
-      if (!resp.ok) return [];
-      return parseRss(await resp.text(), item, 2);
-    } catch (e) { return []; }
+  // 源1: Google News 中文（每地区重试2次）
+  const fetchGoogle = async (item) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
+        const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(6000) });
+        if (resp.ok) {
+          const arr = parseRss(await resp.text(), item, 2);
+          if (arr.length > 0) return arr;
+        }
+      } catch (e) {}
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+    }
+    return [];
   };
-  // 第一轮：Bing 主源，6 地区并行（CF 免费版同时并发 subrequest 上限 6）
-  const bingRound = await Promise.all(DISASTER_QUERIES.map((item) => fetchRss(item, 'bing')));
-  bingRound.forEach((arr) => results.push(...arr));
-  // 第二轮：Bing 空地区用 Google News 补（同样 6 并发以内）
-  const emptyIdx = DISASTER_QUERIES.map((item, i) => results.some((r) => r.region === item.region) ? -1 : i).filter((i) => i >= 0);
-  if (emptyIdx.length > 0) {
-    const googleRound = await Promise.all(emptyIdx.map((i) => fetchRss(DISASTER_QUERIES[i], 'google')));
-    googleRound.forEach((arr) => results.push(...arr));
-  }
+  const googleRound = await Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item)));
+  googleRound.forEach((arr) => results.push(...arr));
+  // 源2: GDACS 全球灾害 RSS（按国家过滤兜底）
+  try {
+    const url = 'https://www.gdacs.org/xml/rss.xml';
+    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(6500) });
+    if (resp.ok) {
+      const xml = await resp.text();
+      const gdacsCount = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      const regionKeys = [
+        ['bangkok', '曼谷'], ['thailand', '泰国'], ['japan', '日本'],
+        ['united states', 'usa', '美国'], ['canada', '加拿大'], ['south korea', 'korea', '韩国']
+      ];
+      for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 30)) {
+        const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim()).toLowerCase();
+        if (title.length < 8) continue;
+        let idx = -1;
+        for (let i = 0; i < regionKeys.length; i++) {
+          if (regionKeys[i].some((k) => title.includes(k))) { idx = i; break; }
+        }
+        if (idx < 0 || gdacsCount[idx] >= 2) continue;
+        const item = DISASTER_QUERIES[idx];
+        if (results.some((r) => r.region === item.region)) continue; // Google 已覆盖则跳过
+        const hit = DISASTER_WORDS.find(([re]) => re.test(title));
+        if (!hit) continue;
+        const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
+        const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
+        let time = '';
+        if (pd) { const t = new Date(pd); if (!isNaN(t)) time = t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+        results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title: title[0].toUpperCase() + title.slice(1), time, url: link, priority: item.priority });
+        gdacsCount[idx]++;
+      }
+    }
+  } catch (e) {}
   results.sort((a, b) => a.priority - b.priority);
   const seen = new Set();
   return results.filter((r) => { const k = r.region + r.title; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
