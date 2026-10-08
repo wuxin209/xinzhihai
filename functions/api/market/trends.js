@@ -177,10 +177,10 @@ const FLOOR = {
   ]
 };
 
-function rotateFloor(list, doy, n) {
+function rotateFloor(list, doy, n, jitter) {
   const len = list.length;
   const out = [];
-  const start = doy % len;
+  const start = ((doy + (jitter || 0)) % len + len) % len;
   for (let i = 0; i < n; i++) out.push(list[(start + i) % len]);
   return out;
 }
@@ -228,8 +228,9 @@ async function handle({ request }) {
   })().catch(() => {});
   await Promise.race([Promise.allSettled([pGoogle, pTrade]), new Promise(r => setTimeout(r, 4200))]);
 
-  // ③ 精选兜底按日期轮换，补足到 limit
-  const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length)
+  // ③ 精选兜底按日期轮换（换一批时加随机偏移，保证每次刷新内容不同），补足到 limit
+  const jitter = refresh ? Math.floor(Math.random() * 100000) : 0;
+  const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitter)
     .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
   const items = [];
   for (const it of live) { if (items.length >= limit) break; items.push(it); }
