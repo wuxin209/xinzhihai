@@ -65,9 +65,9 @@ async function fetchDisasters() {
     }
     return arr;
   };
-  // 源1: Google News 中文（每地区重试2次）
+  // 源1: Google News 中文（每地区重试3次，曼谷/泰国命中率优先）
   const fetchGoogle = async (item) => {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
         const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(6000) });
@@ -76,7 +76,7 @@ async function fetchDisasters() {
           if (arr.length > 0) return arr;
         }
       } catch (e) {}
-      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 450));
     }
     return [];
   };

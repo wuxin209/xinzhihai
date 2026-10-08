@@ -40,7 +40,6 @@ const CUSTOMS_POLICY = [
 // 行业/平台动态精选兜底
 const FALLBACK_NEWS = [
   { flag: '🇺🇸', country: '美国', title: '亚马逊9月新规落地：2026黑五网一入仓全面提前', summary: '亚马逊黑五网一FBA入仓截止时间提前，Q4旺季备货节奏整体前移，卖家须提前安排头程发货。', tag: '平台政策' },
-  { flag: '🇰🇷', country: '韩国', title: 'Coupang火箭增长计划持续，中国新卖家前3个月佣金减半', summary: 'Coupang针对中国新卖家提供前3个月佣金减免50%、物流补贴和广告金支持，美妆、家居品类增长最快。', tag: '平台动态' },
   { flag: '🇺🇸', country: '美国', title: '亚马逊欧洲站锂电池新规：未通过TIC认证将下架', summary: '含锂电池的小家电必须通过指定TIC机构完成直接验证，未通过商品面临下架及FBA库存冻结。', tag: '合规预警' }
 ];
 
@@ -106,7 +105,7 @@ function classify(title) {
     [/CPSC|召回|认证|合规|CE|FCC|UL|锂电池|TIC|责任险|EORI|IOSS|VAT|侵权|起诉|维权|涉诉|被告|税局|倒查|申报/, ['🇺🇸', '合规', '合规预警']],
     [/政策|法规|行政令|豁免|新规|法案|禁令|制裁|管制|立法|监管|查处|约谈/, ['🌐', '政策', '政策法规']],
     [/TikTok|tiktok/, ['🇹🇭', 'TikTok', '平台动态']],
-    [/Coupang|酷胖|韩国/, ['🇰🇷', '韩国', '平台动态']],
+    [/Coupang|酷胖|酷澎|韩国/, null],
     [/日本|乐天/, ['🇯🇵', '日本', '市场行情']],
     [/泰国|越南|东南亚|印尼|Ozon|俄罗斯/, ['🇹🇭', '海外', '市场行情']],
     [/欧盟|欧洲|德国|法国|英国|意大利|西班牙|荷兰|eBay/, ['🇪🇺', '欧盟', '平台政策']],
@@ -124,6 +123,7 @@ async function fetchText(url, ms = 9000) {
 
 function toItem(it) {
   const c = classify(it.title);
+  if (!c) return null;
   return { flag: c.flag, country: c.country, title: it.title, summary: it.title + '（来源：' + it.source + '）', tag: c.tag, time: '今日', origin: it.source };
 }
 
@@ -224,7 +224,7 @@ async function collectAll(doy) {
   if (cif.length) sources.push('雨果网');
   if (was.length) sources.push('知无不言');
   if (g.length) sources.push('GoogleNews');
-  const pool = dedupe([...zb.map(toItem), ...tt.map(toItem), ...cif.map(toItem), ...was.map(toItem), ...g.map(toItem)]);
+  const pool = dedupe([...zb.map(toItem), ...tt.map(toItem), ...cif.map(toItem), ...was.map(toItem), ...g.map(toItem)].filter(Boolean));
   return { pool, sources };
 }
 
