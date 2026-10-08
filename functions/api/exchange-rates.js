@@ -90,6 +90,9 @@ export async function onRequestGet() {
   const result = build(rates, date);
   result.updated = new Date().toLocaleString('zh-CN');
   result.note = '市场中间价，实际结汇以银行现汇买入价为准（通常低0.1%-0.3%）';
+  // 兼容前端期望的 {data:{rates:{...}}} 嵌套结构，同时保留扁平字段
+  result.data = { rates: {} };
+  for (const k of ['USD', 'CAD', 'THB', 'JPY', 'KRW', 'AUD']) if (result[k] !== undefined) result.data.rates[k] = result[k];
   if (errors.length) result.errors = errors;
   cacheData = result;
   cacheTime = Date.now();
