@@ -22,8 +22,9 @@ async function fetchText(url, ms) {
 }
 
 // Google Patents XHR 检索 → 结构化专利清单
-async function queryGooglePatents(kws) {
+async function queryGooglePatents(kws, debug) {
   const results = [];
+  const debugRaw = [];
   // 多组查询策略，任一命中即返回：完整词组 → 核心词
   const tries = [
     kws.join('+'),
@@ -33,6 +34,7 @@ async function queryGooglePatents(kws) {
   for (const tq of tries) {
     const url = `https://patents.google.com/xhr/query?url=q%3D${tq}%26country%3DUS%26num%3D10`;
     const txt = await fetchText(url, 6000);
+    if (debug && txt) debugRaw.push(txt.slice(0, 400));
     if (!txt) continue;
     try {
       const d = JSON.parse(txt);
@@ -57,7 +59,7 @@ async function queryGooglePatents(kws) {
       if (patents.length) results.push(...patents);
     } catch { /* 单组失败继续下一组 */ }
   }
-  return { ok: results.length > 0, patents: results };
+  return { ok: results.length > 0, patents: results, debugRaw };
 }
 
 // Google News RSS 检索商标/侵权/TRO 风险提醒（标题必须含关键词才算相关，过滤噪音）
@@ -100,7 +102,8 @@ export async function onRequestGet(ctx) {
     const hit = mem.get(cacheKey);
     if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 
-    const [gp, news] = await Promise.all([queryGooglePatents(keywords), queryRiskNews(keywords)]);
+    const debug = url.searchParams.get('debug') === '1';
+  const [gp, news] = await Promise.all([queryGooglePatents(keywords, debug), queryRiskNews(keywords)]);
     const risk = gp.ok ? pickRisk(gp.patents) : { level: 'unknown', label: '无法判断', reason: '专利联网检索未成功（网络或接口临时不可用），建议稍后重试或人工核实' };
     const data = {
       risk: risk.level,
@@ -112,6 +115,7 @@ export async function onRequestGet(ctx) {
       summary: gp.ok
         ? `共检索到 ${gp.patents.length} 件相关美国专利，${news.length} 条商标/侵权相关资讯`
         : '专利检索未完成',
+      debugRaw: debug ? gp.debugRaw : undefined,
       disclaimer: DISCLAIMER,
       updated: new Date().toLocaleString('zh-CN')
     };
