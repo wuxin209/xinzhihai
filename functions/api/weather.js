@@ -14,45 +14,55 @@ function decodeEntities(s) {
 }
 // 目标国重大灾害预警：曼谷/泰国置顶优先，其余按目标国排序
 const DISASTER_WORDS = [
-  ['flood', '水灾/洪水'], ['earthquake', '地震'], ['typhoon', '台风'], ['hurricane', '飓风'],
-  ['wildfire', '山火'], ['blizzard', '暴雪'], ['drought', '干旱'], ['storm', '风暴'],
-  ['landslide', '山体滑坡'], ['tsunami', '海啸'], ['eruption', '火山喷发'], ['heatwave', '热浪']
+  [/flood|洪水|水灾|内涝|积水|淹没|淹水|inundat/i, '水灾/洪水'],
+  [/earthquake|地震/i, '地震'],
+  [/typhoon|台风/i, '台风'],
+  [/hurricane|飓风/i, '飓风'],
+  [/wildfire|山火|野火/i, '山火'],
+  [/blizzard|暴雪/i, '暴雪'],
+  [/drought|干旱/i, '干旱'],
+  [/storm|风暴/i, '风暴'],
+  [/landslide|山体滑坡|泥石流/i, '山体滑坡'],
+  [/tsunami|海啸/i, '海啸'],
+  [/eruption|火山/i, '火山喷发'],
+  [/heatwave|热浪/i, '热浪'],
+  [/monsoon|季风/i, '季风暴雨']
 ];
 const DISASTER_QUERIES = [
-  { flag: '🇹🇭', country: '泰国', region: '曼谷', priority: 1, q: 'Bangkok flood OR storm OR "heavy rain" OR inundation' },
-  { flag: '🇹🇭', country: '泰国', region: '泰国', priority: 2, q: 'Thailand flood OR storm OR landslide OR typhoon' },
-  { flag: '🇯🇵', country: '日本', region: '日本', priority: 3, q: 'Japan earthquake OR typhoon OR "heavy rain" OR flood' },
-  { flag: '🇺🇸', country: '美国', region: '美国', priority: 4, q: 'US hurricane OR wildfire OR flood OR tornado' },
-  { flag: '🇨🇦', country: '加拿大', region: '加拿大', priority: 5, q: 'Canada wildfire OR flood OR storm OR blizzard' },
-  { flag: '🇰🇷', country: '韩国', region: '韩国', priority: 6, q: 'South Korea typhoon OR flood OR storm OR "heavy rain"' }
+  { flag: '🇹🇭', country: '泰国', region: '曼谷', priority: 1, q: 'Bangkok flood OR Thailand flood OR 曼谷 水灾' },
+  { flag: '🇹🇭', country: '泰国', region: '泰国', priority: 2, q: 'Thailand flood OR storm OR landslide OR 泰国 洪水' },
+  { flag: '🇯🇵', country: '日本', region: '日本', priority: 3, q: 'Japan earthquake OR typhoon OR flood OR 日本 地震 台风' },
+  { flag: '🇺🇸', country: '美国', region: '美国', priority: 4, q: 'US hurricane OR wildfire OR flood OR 美国 飓风 山火' },
+  { flag: '🇨🇦', country: '加拿大', region: '加拿大', priority: 5, q: 'Canada wildfire OR flood OR storm OR 加拿大 山火' },
+  { flag: '🇰🇷', country: '韩国', region: '韩国', priority: 6, q: 'South Korea typhoon OR flood OR storm OR 韩国 台风 暴雨' }
 ];
 async function fetchDisasters() {
   const results = [];
   const tasks = DISASTER_QUERIES.map(async (item) => {
     try {
-      const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q) + '&hl=en&gl=US&ceid=US:en';
+      const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
       const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(3500) });
       if (!resp.ok) return;
       const xml = await resp.text();
-      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 6);
+      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 8);
       let added = 0;
       for (const m of items) {
         const title = ((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim();
         const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
         const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
         const t = decodeEntities(title);
-        const hit = DISASTER_WORDS.find(([w]) => new RegExp('\\b' + w + '\\b', 'i').test(t));
+        const hit = DISASTER_WORDS.find(([re]) => re.test(t));
         if (!hit) continue;
         const time = pd ? new Date(pd).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
         results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title: t, time, url: link, priority: item.priority });
         added++;
-        if (added >= 2) break;
+        if (added >= 3) break;
       }
     } catch (e) {}
   });
   await Promise.race([Promise.all(tasks), new Promise((res) => setTimeout(res, 4500))]);
   results.sort((a, b) => a.priority - b.priority);
-  return results.slice(0, 6);
+  return results.slice(0, 8);
 }
 async function fetchOpenMeteo() {
   const lat = 25.43, lon = 119.01;
