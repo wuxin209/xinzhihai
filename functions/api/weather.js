@@ -65,18 +65,19 @@ async function fetchDisasters() {
     }
     return arr;
   };
-  // 源1: Google News 中文（每地区重试3次，曼谷/泰国命中率优先）
+  // 源1: Google News 中文（曼谷/泰国重试2次优先，其余1次；整体控制在8秒内）
   const fetchGoogle = async (item) => {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const maxTry = (item.priority === 1 || item.priority === 2) ? 2 : 1;
+    for (let attempt = 0; attempt < maxTry; attempt++) {
       try {
         const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
-        const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(6000) });
+        const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
         if (resp.ok) {
           const arr = parseRss(await resp.text(), item, 2);
           if (arr.length > 0) return arr;
         }
       } catch (e) {}
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 450));
+      if (attempt < maxTry - 1) await new Promise((r) => setTimeout(r, 350));
     }
     return [];
   };
@@ -85,7 +86,7 @@ async function fetchDisasters() {
   // 源2: GDACS 全球灾害 RSS（按国家过滤兜底）
   try {
     const url = 'https://www.gdacs.org/xml/rss.xml';
-    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(6500) });
+    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
     if (resp.ok) {
       const xml = await resp.text();
       const gdacsCount = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -147,6 +148,43 @@ async function fetchOpenMeteo() {
   return { current, weather };
 }
 
+const TARGET_CITIES = [
+  { country: '美国', city: '纽约', lat: 40.7128, lon: -74.006 },
+  { country: '加拿大', city: '多伦多', lat: 43.6532, lon: -79.3832 },
+  { country: '泰国', city: '曼谷', lat: 13.7563, lon: 100.5018 },
+  { country: '日本', city: '东京', lat: 35.6762, lon: 139.6503 },
+  { country: '韩国', city: '首尔', lat: 37.5665, lon: 126.978 },
+  { country: '澳大利亚', city: '悉尼', lat: -33.8688, lon: 151.2093 },
+  { country: '墨西哥', city: '墨西哥城', lat: 19.4326, lon: -99.1332 }
+];
+
+async function fetchCountryWeather() {
+  const jobs = TARGET_CITIES.map(async (c) => {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current_weather=true&timezone=auto`;
+      const resp = await fetch(url, { signal: timeoutSignal(5000) });
+      if (!resp.ok) return null;
+      const d = await resp.json();
+      const cur = d.current_weather;
+      if (!cur) return null;
+      const wmo = {
+        0: '晴', 1: '晴间多云', 2: '多云', 3: '阴', 45: '雾', 48: '雾凇',
+        51: '毛毛雨', 61: '小雨', 63: '中雨', 65: '大雨', 71: '小雪', 73: '中雪', 75: '大雪',
+        80: '阵雨', 95: '雷暴', 96: '雷暴伴冰雹'
+      };
+      return {
+        country: c.country, city: c.city,
+        temp: Math.round(cur.temperature),
+        weather: wmo[cur.weathercode] || ('码' + cur.weathercode),
+        wind: Math.round(cur.windspeed),
+        time: (cur.time || '').slice(11, 16)
+      };
+    } catch (e) { return null; }
+  });
+  const list = (await Promise.all(jobs)).filter(Boolean);
+  return list;
+}
+
 export async function onRequestGet(context) {
   try {
     let weatherData;
@@ -193,8 +231,12 @@ export async function onRequestGet(context) {
       dlog = debug ? globalThis.__dlog || [] : null;
     } catch (e) {}
 
+    // 目标国当前天气（美/加/泰/日/韩/澳/墨，open-meteo 并行，失败不影响主数据）
+    let countryWeather = [];
+    try { countryWeather = await fetchCountryWeather(); } catch (e) {}
+
     return new Response(JSON.stringify({
-      source: 'live', ...weatherData, outfit, notes, disasters, dlog,
+      source: 'live', ...weatherData, outfit, notes, disasters, dlog, countryWeather,
       updated: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)'
     }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
