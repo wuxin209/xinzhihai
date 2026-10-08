@@ -282,7 +282,7 @@ export async function onRequestGet() {
 
   let news = balanceByTag(dedupe([...policyBlock, ...otherBlock])).slice(0, TOTAL);
   const source = sources.length ? 'live:' + sources.join('+') : 'curated';
-  const result = { source, count: news.length, news, items: news, updated: new Date().toLocaleString('zh-CN'), __t: Date.now() };
+  const result = { source, count: news.length, news, items: news, updated: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)', __t: Date.now() };
   cacheData = result; cacheTime = Date.now();
   // 写跨 isolate 边缘缓存（容错，失败不影响返回）
   try { caches.default.put(EDGE_CACHE_KEY, new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
