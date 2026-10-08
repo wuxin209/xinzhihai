@@ -23,36 +23,46 @@ async function fetchText(url, ms) {
 
 // Google Patents XHR 检索 → 结构化专利清单
 async function queryGooglePatents(kws) {
-  const q = kws.map(k => `(${k})`).join('%20AND%20');
-  const url = `https://patents.google.com/xhr/query?url=q%3D${q}%26country%3DUS%26num%3D10`;
-  const txt = await fetchText(url, 8000);
-  if (!txt) return { ok: false, patents: [] };
-  try {
-    const d = JSON.parse(txt);
-    const res = (d && d.results && d.results.result) || [];
-    const patents = res.map(x => {
-      const p = (x && x.patent) || {};
-      const num = p.publication_number || '';
-      const title = p.title || '';
-      const score = x.score || 0;
-      const hits = kws.filter(k => title.toLowerCase().includes(k.toLowerCase())).length;
-      return {
-        patentNumber: num,
-        title,
-        assignee: p.assignee || '',
-        grantDate: (p.grant_date || p.publication_date || '').slice(0, 10),
-        url: num ? `https://patents.google.com/patent/${num}/en` : '',
-        score,
-        titleHits: hits
-      };
-    }).filter(p => p.patentNumber);
-    return { ok: true, patents };
-  } catch { return { ok: false, patents: [] }; }
+  const results = [];
+  // 多组查询策略，任一命中即返回：完整词组 → 核心词
+  const tries = [
+    kws.join('+'),
+    kws.slice(0, 2).join('+'),
+    kws[0]
+  ];
+  for (const tq of tries) {
+    const url = `https://patents.google.com/xhr/query?url=q%3D${tq}%26country%3DUS%26num%3D10`;
+    const txt = await fetchText(url, 6000);
+    if (!txt) continue;
+    try {
+      const d = JSON.parse(txt);
+      const res = (d && d.results && d.results.result) || [];
+      const patents = res.map(x => {
+        const p = (x && x.patent) || {};
+        const num = p.publication_number || '';
+        const title = p.title || '';
+        const score = x.score || 0;
+        const lower = title.toLowerCase();
+        const hits = kws.filter(k => lower.includes(k.toLowerCase())).length;
+        return {
+          patentNumber: num,
+          title,
+          assignee: p.assignee || '',
+          grantDate: (p.grant_date || p.publication_date || '').slice(0, 10),
+          url: num ? `https://patents.google.com/patent/${num}/en` : '',
+          score,
+          titleHits: hits
+        };
+      }).filter(p => p.patentNumber);
+      if (patents.length) results.push(...patents);
+    } catch { /* 单组失败继续下一组 */ }
+  }
+  return { ok: results.length > 0, patents: results };
 }
 
-// Google News RSS 检索商标/侵权/TRO 风险提醒
+// Google News RSS 检索商标/侵权/TRO 风险提醒（标题必须含关键词才算相关，过滤噪音）
 async function queryRiskNews(kws) {
-  const q = encodeURIComponent(kws.slice(0, 3).join(' ') + ' (trademark OR infringement OR TRO OR lawsuit)');
+  const q = encodeURIComponent(kws.slice(0, 2).join(' ') + ' (trademark OR infringement OR TRO OR lawsuit OR patent)');
   const txt = await fetchText(`https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`, 6000);
   if (!txt) return [];
   const out = [];
@@ -62,7 +72,10 @@ async function queryRiskNews(kws) {
     const item = m[1];
     const t = (item.match(/<title>(.*?)<\/title>/) || [])[1] || '';
     const link = (item.match(/<link>(.*?)<\/link>/) || [])[1] || '';
-    if (t) out.push({ title: t.replace(/<!\[CDATA\[|\]\]>/g, ''), url: link });
+    const title = t.replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+    const lower = title.toLowerCase();
+    const hit = kws.some(k => lower.includes(k.toLowerCase()));
+    if (title && hit && lower !== '') out.push({ title, url: link });
   }
   return out;
 }
