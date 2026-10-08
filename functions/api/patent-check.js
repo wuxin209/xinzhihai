@@ -12,53 +12,50 @@ function hashStr(s) {
   return 'pc-' + h.toString(36);
 }
 
-async function fetchText(url, ms) {
+async function fetchText(url, ms, extraHeaders) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json,text/xml,*/*' }, signal: ctrl.signal, redirect: 'follow' });
+    const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json,text/xml,*/*', 'X-Requested-With': 'XMLHttpRequest', 'Referer': 'https://patents.google.com/', ...(extraHeaders || {}) }, signal: ctrl.signal, redirect: 'follow' });
     return r.ok ? await r.text() : '';
   } catch { return ''; } finally { clearTimeout(t); }
 }
 
-// Google Patents XHR 检索 → 结构化专利清单
+// Google Patents XHR 检索 → 结构化专利清单（并行多组查询 + 单组重试，抗 CF 出口波动）
 async function queryGooglePatents(kws, debug) {
-  const results = [];
   const debugRaw = [];
-  // 多组查询策略，任一命中即返回：完整词组 → 核心词
-  const tries = [
-    kws.join('+'),
-    kws.slice(0, 2).join('+'),
-    kws[0]
-  ];
-  for (const tq of tries) {
-    const url = `https://patents.google.com/xhr/query?url=q%3D${tq}%26country%3DUS%26num%3D10`;
-    const txt = await fetchText(url, 6000);
-    if (debug && txt) debugRaw.push(txt.slice(0, 400));
-    if (!txt) continue;
-    try {
-      const d = JSON.parse(txt);
-      const res = (d && d.results && d.results.result) || [];
-      const patents = res.map(x => {
-        const p = (x && x.patent) || {};
-        const num = p.publication_number || '';
-        const title = p.title || '';
-        const score = x.score || 0;
-        const lower = title.toLowerCase();
-        const hits = kws.filter(k => lower.includes(k.toLowerCase())).length;
-        return {
-          patentNumber: num,
-          title,
-          assignee: p.assignee || '',
-          grantDate: (p.grant_date || p.publication_date || '').slice(0, 10),
-          url: num ? `https://patents.google.com/patent/${num}/en` : '',
-          score,
-          titleHits: hits
-        };
-      }).filter(p => p.patentNumber);
-      if (patents.length) results.push(...patents);
-    } catch { /* 单组失败继续下一组 */ }
-  }
+  const tries = [kws.join(' '), kws.slice(0, 2).join(' '), kws[0]];
+  const attempt = async (tq) => {
+    for (let retry = 0; retry < 2; retry++) {
+      const url = `https://patents.google.com/xhr/query?url=q%3D${encodeURIComponent(tq).replace(/%20/g, '+')}%26country%3DUS%26num%3D10`;
+      const txt = await fetchText(url, 5500);
+      if (debug && txt) debugRaw.push(txt.slice(0, 300));
+      if (!txt) continue;
+      try {
+        const d = JSON.parse(txt);
+        const res = (d && d.results && d.results.result) || [];
+        const patents = res.map(x => {
+          const p = (x && x.patent) || {};
+          const num = p.publication_number || '';
+          const title = p.title || '';
+          const lower = title.toLowerCase();
+          const hits = kws.filter(k => lower.includes(k.toLowerCase())).length;
+          return {
+            patentNumber: num,
+            title,
+            assignee: p.assignee || '',
+            grantDate: (p.grant_date || p.publication_date || '').slice(0, 10),
+            url: num ? `https://patents.google.com/patent/${num}/en` : '',
+            titleHits: hits
+          };
+        }).filter(p => p.patentNumber);
+        if (patents.length) return patents;
+      } catch { /* 单组失败继续 */ }
+    }
+    return [];
+  };
+  const groups = await Promise.all(tries.map(attempt));
+  const results = groups.flat();
   return { ok: results.length > 0, patents: results, debugRaw };
 }
 
