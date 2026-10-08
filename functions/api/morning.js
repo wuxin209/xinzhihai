@@ -265,7 +265,7 @@ export async function onRequestGet() {
   const result = {
     source, liveCount, platformCount: finalCount,
     count: merged.length, news: merged, items: merged,
-    updated: now.toLocaleString('zh-CN')
+    updated: new Date(now.getTime() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)'
   };
   if (amz.length || tt.length || g.length) { cacheData = result; cacheTime = Date.now(); }
   return new Response(JSON.stringify(result), {

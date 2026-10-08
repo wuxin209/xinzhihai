@@ -88,7 +88,7 @@ export async function onRequestGet() {
   }
 
   const result = build(rates, date);
-  result.updated = new Date().toLocaleString('zh-CN');
+  result.updated = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)';
   result.note = '市场中间价，实际结汇以银行现汇买入价为准（通常低0.1%-0.3%）';
   // 兼容前端期望的 {data:{rates:{...}}} 嵌套结构，同时保留扁平字段
   result.data = { rates: {} };

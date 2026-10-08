@@ -109,7 +109,10 @@ async function fetchDisasters() {
         const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
         let time = '';
         if (pd) { const t = new Date(pd); if (!isNaN(t)) time = t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
-        results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title: title[0].toUpperCase() + title.slice(1), time, url: link, priority: item.priority });
+        const dispRegion = item.region === '泰国' ? '曼谷/泰国' : item.region;
+        const rawTitle = title[0].toUpperCase() + title.slice(1);
+        const dispTitle = item.region === '泰国' ? '泰国（曼谷）' + hit[1] + '：' + rawTitle : rawTitle;
+        results.push({ flag: item.flag, country: item.country, region: dispRegion, type: hit[1], title: dispTitle, time, url: link, priority: item.priority });
         gdacsCount[idx]++;
       }
     }
@@ -192,7 +195,7 @@ export async function onRequestGet(context) {
 
     return new Response(JSON.stringify({
       source: 'live', ...weatherData, outfit, notes, disasters, dlog,
-      updated: new Date().toLocaleString('zh-CN')
+      updated: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)'
     }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
     return new Response(JSON.stringify({ source: 'fallback', error: e.message }), {
