@@ -47,14 +47,16 @@ function pushHit(results, item, title, url, pd) {
   results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title, time, url: url || '', priority: item.priority });
   return true;
 }
-async function fetchDisasters() {
+async function fetchDisasters(debug) {
   const results = [];
+  if (debug) globalThis.__dlog = [];
   const tasks = DISASTER_QUERIES.map(async (item) => {
     const addedBy = (arr, cap) => { let n = 0; return (t, l, pd) => { if (n >= cap) return false; if (pushHit(arr, item, t, l, pd)) { n++; return true; } return false; }; };
     // 源1: Bing News RSS（中文，从CF出口稳定）
     try {
       const url = 'https://www.bing.com/news/search?q=' + encodeURIComponent(item.q) + '&format=RSS&mkt=zh-CN';
       const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4500) });
+      if (debug) globalThis.__dlog.push(item.region + '/bing: ' + resp.status + ' len=' + (await resp.clone().text()).length);
       if (resp.ok) {
         const xml = await resp.text();
         const add = addedBy(results, 2);
@@ -66,11 +68,12 @@ async function fetchDisasters() {
           if (add(title, link, pd)) break;
         }
       }
-    } catch (e) {}
+    } catch (e) { if (debug) globalThis.__dlog.push(item.region + '/bing: ERR ' + e.message); }
     // 源2: Google News 简单中文查询
     try {
       const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
       const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4500) });
+      if (debug) globalThis.__dlog.push(item.region + '/google: ' + resp.status + ' len=' + (await resp.clone().text()).length);
       if (resp.ok) {
         const xml = await resp.text();
         const add = addedBy(results, 2);
@@ -82,11 +85,13 @@ async function fetchDisasters() {
           if (add(title, link, pd)) break;
         }
       }
-    } catch (e) {}
+    } catch (e) { if (debug) globalThis.__dlog.push(item.region + '/google: ERR ' + e.message); }
     // 源3: GDELT 英文查询兜底
     try {
       const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent(item.gq) + '&mode=artlist&maxrecords=4&format=json&timespan=7d&sort=datedesc';
       const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4500) });
+      let tlen = 0;
+      if (debug) { try { tlen = (await resp.clone().text()).length; } catch (e) {} globalThis.__dlog.push(item.region + '/gdelt: ' + resp.status + ' len=' + tlen); }
       if (resp.ok) {
         const j = await resp.json();
         const add = addedBy(results, 2);
@@ -97,7 +102,7 @@ async function fetchDisasters() {
           if (add(title, a.url, pd)) break;
         }
       }
-    } catch (e) {}
+    } catch (e) { if (debug) globalThis.__dlog.push(item.region + '/gdelt: ERR ' + e.message); }
   });
   await Promise.race([Promise.all(tasks), new Promise((res) => setTimeout(res, 5600))]);
   results.sort((a, b) => a.priority - b.priority);
@@ -167,10 +172,16 @@ export async function onRequestGet(context) {
 
     // 目标国重大灾害预警（曼谷/泰国置顶；失败不影响主天气数据）
     let disasters = [];
-    try { disasters = await fetchDisasters(); } catch (e) {}
+    let dlog = null;
+    try {
+      const u = new URL(context.request.url);
+      const debug = u.searchParams.get('debug') === '1';
+      disasters = await fetchDisasters(debug);
+      dlog = debug ? globalThis.__dlog || [] : null;
+    } catch (e) {}
 
     return new Response(JSON.stringify({
-      source: 'live', ...weatherData, outfit, notes, disasters,
+      source: 'live', ...weatherData, outfit, notes, disasters, dlog,
       updated: new Date().toLocaleString('zh-CN')
     }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
