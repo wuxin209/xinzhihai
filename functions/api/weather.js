@@ -47,7 +47,20 @@ function pushHit(results, item, title, url, pd) {
   results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title, time, url: url || '', priority: item.priority });
   return true;
 }
+const DISASTERS_CACHE_KEY = 'xzh-disasters-v1';
 async function fetchDisasters() {
+  // 缓存命中优先：上游偶发失败时返回最近 10 分钟成功结果（曼谷水灾等不丢）
+  try {
+    const cache = caches.default;
+    if (cache) {
+      const hit = await cache.match(DISASTERS_CACHE_KEY);
+      if (hit && hit.ok) {
+        const cached = await hit.json();
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      }
+    }
+  } catch (e) {}
+
   const results = [];
   const parseRss = (xml, item, cap) => {
     const arr = [];
@@ -120,7 +133,21 @@ async function fetchDisasters() {
   } catch (e) {}
   results.sort((a, b) => a.priority - b.priority);
   const seen = new Set();
-  return results.filter((r) => { const k = r.region + r.title; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+  const out = results.filter((r) => { const k = r.region + r.title; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+
+  // 写入缓存 10 分钟（曼谷水灾等重大灾害必须持续可见）
+  if (out.length > 0) {
+    try {
+      const cache = caches.default;
+      if (cache) {
+        const resp = new Response(JSON.stringify(out), {
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=600' }
+        });
+        await cache.put(DISASTERS_CACHE_KEY, resp);
+      }
+    } catch (e) {}
+  }
+  return out;
 }
 async function fetchOpenMeteo() {
   const lat = 25.43, lon = 119.01;
