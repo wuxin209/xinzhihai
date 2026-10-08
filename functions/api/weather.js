@@ -1,4 +1,59 @@
 import { getAmapKey } from './_config.js';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+function timeoutSignal(ms) {
+  const ctrl = new AbortController();
+  setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, ms);
+  return ctrl.signal;
+}
+function decodeEntities(s) {
+  if (!s) return '';
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/<[^>]+>/g, '').trim();
+}
+// 目标国重大灾害预警：曼谷/泰国置顶优先，其余按目标国排序
+const DISASTER_WORDS = [
+  ['flood', '水灾/洪水'], ['earthquake', '地震'], ['typhoon', '台风'], ['hurricane', '飓风'],
+  ['wildfire', '山火'], ['blizzard', '暴雪'], ['drought', '干旱'], ['storm', '风暴'],
+  ['landslide', '山体滑坡'], ['tsunami', '海啸'], ['eruption', '火山喷发'], ['heatwave', '热浪']
+];
+const DISASTER_QUERIES = [
+  { flag: '🇹🇭', country: '泰国', region: '曼谷', priority: 1, q: 'Bangkok flood OR storm OR "heavy rain" OR inundation' },
+  { flag: '🇹🇭', country: '泰国', region: '泰国', priority: 2, q: 'Thailand flood OR storm OR landslide OR typhoon' },
+  { flag: '🇯🇵', country: '日本', region: '日本', priority: 3, q: 'Japan earthquake OR typhoon OR "heavy rain" OR flood' },
+  { flag: '🇺🇸', country: '美国', region: '美国', priority: 4, q: 'US hurricane OR wildfire OR flood OR tornado' },
+  { flag: '🇨🇦', country: '加拿大', region: '加拿大', priority: 5, q: 'Canada wildfire OR flood OR storm OR blizzard' },
+  { flag: '🇰🇷', country: '韩国', region: '韩国', priority: 6, q: 'South Korea typhoon OR flood OR storm OR "heavy rain"' }
+];
+async function fetchDisasters() {
+  const results = [];
+  const tasks = DISASTER_QUERIES.map(async (item) => {
+    try {
+      const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q) + '&hl=en&gl=US&ceid=US:en';
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(3500) });
+      if (!resp.ok) return;
+      const xml = await resp.text();
+      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 6);
+      let added = 0;
+      for (const m of items) {
+        const title = ((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim();
+        const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
+        const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
+        const t = decodeEntities(title);
+        const hit = DISASTER_WORDS.find(([w]) => new RegExp('\\b' + w + '\\b', 'i').test(t));
+        if (!hit) continue;
+        const time = pd ? new Date(pd).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title: t, time, url: link, priority: item.priority });
+        added++;
+        if (added >= 2) break;
+      }
+    } catch (e) {}
+  });
+  await Promise.race([Promise.all(tasks), new Promise((res) => setTimeout(res, 4500))]);
+  results.sort((a, b) => a.priority - b.priority);
+  return results.slice(0, 6);
+}
 async function fetchOpenMeteo() {
   const lat = 25.43, lon = 119.01;
   const resp = await fetch(
@@ -61,8 +116,12 @@ export async function onRequestGet(context) {
     if (weatherData.current.wind >= 30) notes.push('大风天气，注意安全');
     if (notes.length === 0) notes.push('天气不错，适合外出');
 
+    // 目标国重大灾害预警（曼谷/泰国置顶；失败不影响主天气数据）
+    let disasters = [];
+    try { disasters = await fetchDisasters(); } catch (e) {}
+
     return new Response(JSON.stringify({
-      source: 'live', ...weatherData, outfit, notes,
+      source: 'live', ...weatherData, outfit, notes, disasters,
       updated: new Date().toLocaleString('zh-CN')
     }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
