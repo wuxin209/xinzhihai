@@ -21,15 +21,14 @@ async function fetchText(url, ms, extraHeaders) {
   } catch { return ''; } finally { clearTimeout(t); }
 }
 
-// Google Patents XHR 检索 → 结构化专利清单（并行多组查询 + 单组重试，抗 CF 出口波动）
-async function queryGooglePatents(kws, debug) {
-  const debugRaw = [];
+// ============ 多源专利检索（并发，谁成功用谁） ============
+// 源1: Google Patents XHR（并行多组查询 + 单组重试）
+async function queryGooglePatents(kws) {
   const tries = [kws.join(' '), kws.slice(0, 2).join(' '), kws[0]];
   const attempt = async (tq) => {
     for (let retry = 0; retry < 2; retry++) {
       const url = `https://patents.google.com/xhr/query?url=q%3D${encodeURIComponent(tq).replace(/%20/g, '+')}%26country%3DUS%26num%3D10`;
       const txt = await fetchText(url, 5500);
-      if (debug && txt) debugRaw.push(txt.slice(0, 300));
       if (!txt) continue;
       try {
         const d = JSON.parse(txt);
@@ -38,25 +37,103 @@ async function queryGooglePatents(kws, debug) {
           const p = (x && x.patent) || {};
           const num = p.publication_number || '';
           const title = p.title || '';
-          const lower = title.toLowerCase();
-          const hits = kws.filter(k => lower.includes(k.toLowerCase())).length;
-          return {
-            patentNumber: num,
-            title,
-            assignee: p.assignee || '',
-            grantDate: (p.grant_date || p.publication_date || '').slice(0, 10),
-            url: num ? `https://patents.google.com/patent/${num}/en` : '',
-            titleHits: hits
-          };
+          return mkPatent(num, title, p.assignee || '', (p.grant_date || p.publication_date || '').slice(0, 10), kws);
         }).filter(p => p.patentNumber);
         if (patents.length) return patents;
-      } catch { /* 单组失败继续 */ }
+      } catch { /* 继续 */ }
     }
     return [];
   };
   const groups = await Promise.all(tries.map(attempt));
-  const results = groups.flat();
-  return { ok: results.length > 0, patents: results, debugRaw };
+  return groups.flat();
+}
+
+function mkPatent(num, title, assignee, date, kws) {
+  const lower = (title || '').toLowerCase();
+  return {
+    patentNumber: String(num || '').trim(),
+    title: title || '',
+    assignee: assignee || '',
+    grantDate: date || '',
+    url: num ? `https://patents.google.com/patent/${num}/en` : '',
+    titleHits: (kws || []).filter(k => lower.includes(k.toLowerCase())).length
+  };
+}
+
+// 源2: DuckDuckGo HTML 搜索（标题内提取专利号）
+async function queryDuckDuckGo(kws) {
+  const q = encodeURIComponent(kws.slice(0, 2).join(' ') + ' patent US');
+  const txt = await fetchText(`https://html.duckduckgo.com/html/?q=${q}`, 6000);
+  if (!txt) return [];
+  const out = [];
+  const re = /result__a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  let m;
+  const seen = new Set();
+  while ((m = re.exec(txt)) && out.length < 6) {
+    const href = m[1] || '';
+    const title = m[2].replace(/<[^>]+>/g, '').trim();
+    const numMatch = title.match(/US\s?(\d{6,8})/i);
+    if (!numMatch) continue;
+    const num = 'US' + numMatch[1];
+    if (seen.has(num)) continue;
+    seen.add(num);
+    out.push(mkPatent(num, title.slice(0, 120), '', '', kws));
+  }
+  return out;
+}
+
+// 源3: PatentsView v2 API（USPTO 官方数据）
+async function queryPatentsView(kws) {
+  const q = encodeURIComponent(JSON.stringify({ patent_title: { contains: kws[0] } }));
+  const f = encodeURIComponent(JSON.stringify(['patent_number', 'patent_title', 'patent_assignee', 'patent_date']));
+  const o = encodeURIComponent(JSON.stringify({ size: 6 }));
+  const txt = await fetchText(`https://search.patentsview.org/api/v1/patent/?q=${q}&f=${f}&o=${o}`, 7000);
+  if (!txt) return [];
+  try {
+    const d = JSON.parse(txt);
+    const list = (d && d.patents) || [];
+    return list.map(p => mkPatent(p.patent_number, p.patent_title || p.patent_title?.text?.[0] || '', p.patent_assignee || '', p.patent_date || '', kws)).filter(p => p.patentNumber);
+  } catch { return []; }
+}
+
+// 源4: FreePatentsOnline HTML（链接含 us-专利号）
+async function queryFreePatents(kws) {
+  const q = encodeURIComponent(kws.slice(0, 2).join(' '));
+  const txt = await fetchText(`https://www.freepatentsonline.com/result.html?query_txt=${q}&submit=Search&patents=on`, 6000);
+  if (!txt) return [];
+  const out = [];
+  const seen = new Set();
+  const re = /href="\/patent\/us-(\d+)([^"]*)">([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(txt)) && out.length < 6) {
+    const num = 'US' + m[1];
+    if (seen.has(num)) continue;
+    seen.add(num);
+    out.push(mkPatent(num, m[3].replace(/<[^>]+>/g, '').trim().slice(0, 120), '', '', kws));
+  }
+  return out;
+}
+
+async function queryPatentsAll(kws) {
+  const [gp, ddg, pv, fpo] = await Promise.all([
+    queryGooglePatents(kws).catch(() => []),
+    queryDuckDuckGo(kws).catch(() => []),
+    queryPatentsView(kws).catch(() => []),
+    queryFreePatents(kws).catch(() => [])
+  ]);
+  const merged = {};
+  for (const p of [...gp, ...ddg, ...pv, ...fpo]) {
+    if (!p.patentNumber) continue;
+    const k = p.patentNumber.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    if (merged[k]) {
+      if (!merged[k].title && p.title) merged[k].title = p.title;
+      if (!merged[k].assignee && p.assignee) merged[k].assignee = p.assignee;
+      if (!merged[k].grantDate && p.grantDate) merged[k].grantDate = p.grantDate;
+      merged[k].titleHits = Math.max(merged[k].titleHits, p.titleHits);
+    } else merged[k] = p;
+  }
+  const list = Object.values(merged).sort((a, b) => b.titleHits - a.titleHits).slice(0, 8);
+  return list;
 }
 
 // Google News RSS 检索商标/侵权/TRO 风险提醒（标题必须含关键词才算相关，过滤噪音）
@@ -100,19 +177,19 @@ export async function onRequestGet(ctx) {
     if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 
     const debug = url.searchParams.get('debug') === '1';
-  const [gp, news] = await Promise.all([queryGooglePatents(keywords, debug), queryRiskNews(keywords)]);
-    const risk = gp.ok ? pickRisk(gp.patents) : { level: 'unknown', label: '无法判断', reason: '专利联网检索未成功（网络或接口临时不可用），建议稍后重试或人工核实' };
+    const [patents, news] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords)]);
+    const ok = patents.length > 0;
+    const risk = ok ? pickRisk(patents) : { level: 'unknown', label: '无法判断', reason: '专利联网检索未成功（网络或接口临时不可用），建议稍后重试或人工核实' };
     const data = {
       risk: risk.level,
       riskLabel: risk.label,
       riskReason: risk.reason,
-      patents: gp.patents.slice(0, 8),
+      patents,
       trademarkWarnings: news,
       keywords,
-      summary: gp.ok
-        ? `共检索到 ${gp.patents.length} 件相关美国专利，${news.length} 条商标/侵权相关资讯`
+      summary: ok
+        ? `共检索到 ${patents.length} 件相关美国专利，${news.length} 条商标/侵权相关资讯`
         : '专利检索未完成',
-      debugRaw: debug ? gp.debugRaw : undefined,
       disclaimer: DISCLAIMER,
       updated: new Date().toLocaleString('zh-CN')
     };
