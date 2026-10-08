@@ -164,13 +164,27 @@ function pickRisk(patents) {
   return { level: 'low', label: '低风险', reason: '未检索到高度相关的已授权专利，仍建议人工复核' };
 }
 
+// A 方案：人工检索链接生成（100% 稳定，零联网依赖）
+function buildSearchLinks(kws) {
+  const q = kws.slice(0, 2).join(' ');
+  const qq = encodeURIComponent('"' + q + '"');
+  const qz = encodeURIComponent(q + ' patent OR trademark OR infringement');
+  return [
+    { label: 'Google Patents · 美国专利', url: `https://patents.google.com/?q=${qq}&country=US&language=ENGLISH` },
+    { label: 'Google Patents · 全球专利', url: `https://patents.google.com/?q=${qq}` },
+    { label: 'USPTO · 美国商标查询', url: 'https://tmsearch.uspto.gov/' },
+    { label: 'Google · 专利/侵权综合搜索', url: `https://www.google.com/search?q=${qz}` },
+    { label: '亚马逊 · 品牌注册与侵权举报指引', url: 'https://www.amazon.com/gp/help/customer/display.html?nodeId=202075700' }
+  ];
+}
+
 export async function onRequestGet(ctx) {
   try {
     const url = new URL(ctx.request.url);
     const raw = url.searchParams.get('keywords') || url.searchParams.get('q') || '';
     const keywords = raw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
     if (!keywords.length) {
-      return new Response(JSON.stringify({ risk: 'empty', patents: [], trademarkWarnings: [], summary: '请输入产品英文关键词（逗号分隔，1~3 个），例如：water bottle, cap', disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      return new Response(JSON.stringify({ risk: 'empty', patents: [], trademarkWarnings: [], searchLinks: [], summary: '请输入产品英文关键词（逗号分隔，1~3 个），例如：water bottle, cap', disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
     const cacheKey = hashStr(keywords.join('|'));
     const hit = mem.get(cacheKey);
@@ -179,23 +193,26 @@ export async function onRequestGet(ctx) {
     const debug = url.searchParams.get('debug') === '1';
     const [patents, news] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords)]);
     const ok = patents.length > 0;
-    const risk = ok ? pickRisk(patents) : { level: 'unknown', label: '无法判断', reason: '专利联网检索未成功（网络或接口临时不可用），建议稍后重试或人工核实' };
+    const risk = ok
+      ? pickRisk(patents)
+      : { level: 'manual', label: '建议人工核实', reason: '自动专利库检索暂不可用，已为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
     const data = {
       risk: risk.level,
       riskLabel: risk.label,
       riskReason: risk.reason,
       patents,
       trademarkWarnings: news,
+      searchLinks: buildSearchLinks(keywords),
       keywords,
       summary: ok
-        ? `共检索到 ${patents.length} 件相关美国专利，${news.length} 条商标/侵权相关资讯`
-        : '专利检索未完成',
+        ? `自动检索到 ${patents.length} 件相关美国专利；${news.length} 条侵权/TRO 相关资讯；同时附上人工核实链接`
+        : `自动检索暂不可用，已生成 ${buildSearchLinks(keywords).length} 个一键人工核实链接；${news.length} 条侵权/TRO 相关资讯`,
       disclaimer: DISCLAIMER,
       updated: new Date().toLocaleString('zh-CN')
     };
     mem.set(cacheKey, { t: Date.now(), data });
     return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
-    return new Response(JSON.stringify({ risk: 'error', patents: [], trademarkWarnings: [], summary: '排查服务异常：' + String(e && e.message || e), disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    return new Response(JSON.stringify({ risk: 'error', patents: [], trademarkWarnings: [], searchLinks: [], summary: '排查服务异常：' + String(e && e.message || e), disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   }
 }
