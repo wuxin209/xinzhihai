@@ -47,66 +47,46 @@ function pushHit(results, item, title, url, pd) {
   results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title, time, url: url || '', priority: item.priority });
   return true;
 }
-async function fetchDisasters(debug) {
+async function fetchDisasters() {
   const results = [];
-  if (debug) globalThis.__dlog = [];
-  const tasks = DISASTER_QUERIES.map(async (item) => {
-    const addedBy = (arr, cap) => { let n = 0; return (t, l, pd) => { if (n >= cap) return false; if (pushHit(arr, item, t, l, pd)) { n++; return true; } return false; }; };
-    // 源1: Bing News RSS（中文，从CF出口稳定）
+  const parseRss = (xml, item, cap) => {
+    const arr = [];
+    for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10)) {
+      if (arr.length >= cap) break;
+      const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim());
+      const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
+      const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
+      if (title.length < 6) continue;
+      const hit = DISASTER_WORDS.find(([re]) => re.test(title));
+      if (!hit) continue;
+      let time = '';
+      if (pd) { const t = new Date(pd); if (!isNaN(t)) time = t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+      arr.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title, time, url: link, priority: item.priority });
+    }
+    return arr;
+  };
+  const fetchRss = async (item, kind) => {
     try {
-      const url = 'https://www.bing.com/news/search?q=' + encodeURIComponent(item.q) + '&format=RSS&mkt=zh-CN';
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4500) });
-      if (debug) globalThis.__dlog.push(item.region + '/bing: ' + resp.status + ' len=' + (await resp.clone().text()).length);
-      if (resp.ok) {
-        const xml = await resp.text();
-        const add = addedBy(results, 2);
-        for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10)) {
-          const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim());
-          const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
-          const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
-          if (title.length < 6) continue;
-          if (add(title, link, pd)) break;
-        }
-      }
-    } catch (e) { if (debug) globalThis.__dlog.push(item.region + '/bing: ERR ' + e.message); }
-    // 源2: Google News 简单中文查询
-    try {
-      const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4500) });
-      if (debug) globalThis.__dlog.push(item.region + '/google: ' + resp.status + ' len=' + (await resp.clone().text()).length);
-      if (resp.ok) {
-        const xml = await resp.text();
-        const add = addedBy(results, 2);
-        for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10)) {
-          const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim());
-          const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
-          const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
-          if (title.length < 6) continue;
-          if (add(title, link, pd)) break;
-        }
-      }
-    } catch (e) { if (debug) globalThis.__dlog.push(item.region + '/google: ERR ' + e.message); }
-    // 源3: GDELT 英文查询兜底
-    try {
-      const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=' + encodeURIComponent(item.gq) + '&mode=artlist&maxrecords=4&format=json&timespan=7d&sort=datedesc';
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4500) });
-      let tlen = 0;
-      if (debug) { try { tlen = (await resp.clone().text()).length; } catch (e) {} globalThis.__dlog.push(item.region + '/gdelt: ' + resp.status + ' len=' + tlen); }
-      if (resp.ok) {
-        const j = await resp.json();
-        const add = addedBy(results, 2);
-        for (const a of (j.articles || [])) {
-          const title = (a.title || '').trim();
-          if (title.length < 6) continue;
-          const pd = a.seendate ? a.seendate.slice(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') + 'T' + (a.seendate.slice(8, 12) || '0000').replace(/(\d{2})(\d{2})/, '$1:$2') + ':00' : '';
-          if (add(title, a.url, pd)) break;
-        }
-      }
-    } catch (e) { if (debug) globalThis.__dlog.push(item.region + '/gdelt: ERR ' + e.message); }
-  });
-  await Promise.race([Promise.all(tasks), new Promise((res) => setTimeout(res, 5600))]);
+      const url = kind === 'bing'
+        ? 'https://www.bing.com/news/search?q=' + encodeURIComponent(item.q) + '&format=RSS&mkt=zh-CN'
+        : 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
+      if (!resp.ok) return [];
+      return parseRss(await resp.text(), item, 2);
+    } catch (e) { return []; }
+  };
+  // 第一轮：Bing 主源，6 地区并行（CF 免费版同时并发 subrequest 上限 6）
+  const bingRound = await Promise.all(DISASTER_QUERIES.map((item) => fetchRss(item, 'bing')));
+  bingRound.forEach((arr) => results.push(...arr));
+  // 第二轮：Bing 空地区用 Google News 补（同样 6 并发以内）
+  const emptyIdx = DISASTER_QUERIES.map((item, i) => results.some((r) => r.region === item.region) ? -1 : i).filter((i) => i >= 0);
+  if (emptyIdx.length > 0) {
+    const googleRound = await Promise.all(emptyIdx.map((i) => fetchRss(DISASTER_QUERIES[i], 'google')));
+    googleRound.forEach((arr) => results.push(...arr));
+  }
   results.sort((a, b) => a.priority - b.priority);
-  return results.slice(0, 8);
+  const seen = new Set();
+  return results.filter((r) => { const k = r.region + r.title; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
 }
 async function fetchOpenMeteo() {
   const lat = 25.43, lon = 119.01;
