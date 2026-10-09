@@ -16,7 +16,7 @@ async function callDeepSeek(apiKey, messages) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
     body: JSON.stringify({ model: 'deepseek-chat', messages, temperature: 0.7, max_tokens: 2000 }),
-    signal: AbortSignal.timeout(25000)
+    signal: AbortSignal.timeout(20000)
   });
   if (!resp.ok) throw new Error('DeepSeek error: ' + resp.status);
   const data = await resp.json();
@@ -52,7 +52,7 @@ function fallbackResult(product, category, site, sellingPoints) {
     amazonTitle: product + ' - ' + t.kw.split(' ')[0] + ' Premium Quality, ' + points[0].slice(0,30),
     bulletPoints: points.map((p,i) => ['✓','★','◆','●','▶'][i] + ' ' + p),
     description: '<h2>' + product + '</h2><p>' + points.join('</p><p>') + '</p>',
-    searchTerms: t.kw,
+    searchTerms: (t.kw.split(' ')[0] + ' ' + product.split(' ')[0] + ' ' + t.kw.split(' ').slice(1).join(' ')).trim(),
     titles: [product + ' - Premium ' + t.kw.split(' ')[0], 'Best ' + product + ' ' + new Date().getFullYear()],
     fivePoints: points,
     script30s: 'Introducing ' + product + '. ' + points.slice(0,2).join(' '),
