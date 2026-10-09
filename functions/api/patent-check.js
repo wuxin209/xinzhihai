@@ -27,7 +27,7 @@ async function fetchText(url, ms, extraHeaders) {
 async function queryGooglePatents(kws) {
   const tries = [kws.join(' '), kws.slice(0, 2).join(' '), kws[0]];
   const attempt = async (tq) => {
-    for (let retry = 0; retry < 1; retry++) {
+    for (let retry = 0; retry < 1; retry++) { // 单次
       const url = `https://patents.google.com/xhr/query?url=q%3D${encodeURIComponent(tq).replace(/%20/g, '+')}%26country%3DUS%26num%3D10`;
       const txt = await fetchText(url, 4500);
       if (!txt) continue;
@@ -212,7 +212,7 @@ async function querySellerDefenseCases(kws) {
   // 前 2 个关键词并发直查（每词 ≤7s），命中即结构化案件
   const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 3).map(async k => {
     const url = 'https://tro.sellerdefense.cn/api/cases/search?query=' + encodeURIComponent(k.trim()) + '&page=1&size=8';
-    const txt = await fetchText(url, 7000, { 'Accept': 'application/json' });
+    const txt = await fetchText(url, 6000, { 'Accept': 'application/json' });
     if (!txt) return [];
     try {
       const d = JSON.parse(txt);
@@ -252,7 +252,7 @@ const libCache = { t: 0, data: null }; // 12 小时缓存
 async function fetchBrandLibraries() {
   if (libCache.data && Date.now() - libCache.t < 12 * 3600 * 1000) return libCache.data;
   // 运行时尝试补充文字版品牌库（失败降级为内置清单，零风险）
-  const html = await fetchText('https://sellerdefense.cn/brands-text/', 6000, { 'Accept': 'text/html,*/*' });
+  const html = await fetchText('https://sellerdefense.cn/brands-text/', 5000, { 'Accept': 'text/html,*/*' });
   const brands = [...BUILTIN_BRANDS];
   if (html) {
     const re = /\b([A-Z][A-Za-z0-9 &'\u0027\.\-]{2,45})\b/g;
