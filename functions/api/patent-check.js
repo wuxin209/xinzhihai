@@ -27,9 +27,9 @@ async function fetchText(url, ms, extraHeaders) {
 async function queryGooglePatents(kws) {
   const tries = [kws.join(' '), kws.slice(0, 2).join(' '), kws[0]];
   const attempt = async (tq) => {
-    for (let retry = 0; retry < 2; retry++) {
+    for (let retry = 0; retry < 1; retry++) {
       const url = `https://patents.google.com/xhr/query?url=q%3D${encodeURIComponent(tq).replace(/%20/g, '+')}%26country%3DUS%26num%3D10`;
-      const txt = await fetchText(url, 5500);
+      const txt = await fetchText(url, 4500);
       if (!txt) continue;
       try {
         const d = JSON.parse(txt);
@@ -64,7 +64,7 @@ function mkPatent(num, title, assignee, date, kws) {
 // 源2: DuckDuckGo HTML 搜索（标题内提取专利号）
 async function queryDuckDuckGo(kws) {
   const q = encodeURIComponent(kws.slice(0, 2).join(' ') + ' patent US');
-  const txt = await fetchText(`https://html.duckduckgo.com/html/?q=${q}`, 6000);
+  const txt = await fetchText(`https://html.duckduckgo.com/html/?q=${q}`, 5500);
   if (!txt) return [];
   const out = [];
   const re = /result__a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
@@ -116,11 +116,10 @@ async function queryFreePatents(kws) {
 }
 
 async function queryPatentsAll(kws) {
-  const [gp, ddg, pv, fpo] = await Promise.all([
+  // 仅保留 2 个可达源（Google Patents + DuckDuckGo），PatentsView/FreePatents 长期反爬已砍，控制并发 ≤6
+  const [gp, ddg] = await Promise.all([
     queryGooglePatents(kws).catch(() => []),
-    queryDuckDuckGo(kws).catch(() => []),
-    queryPatentsView(kws).catch(() => []),
-    queryFreePatents(kws).catch(() => [])
+    queryDuckDuckGo(kws).catch(() => [])
   ]);
   const merged = {};
   for (const p of [...gp, ...ddg, ...pv, ...fpo]) {
@@ -140,7 +139,7 @@ async function queryPatentsAll(kws) {
 // Google News RSS 检索商标/侵权/TRO 风险提醒（标题必须含关键词才算相关，过滤噪音）
 async function queryRiskNews(kws) {
   const q = encodeURIComponent(kws.slice(0, 2).join(' ') + ' (trademark OR infringement OR TRO OR lawsuit OR patent)');
-  const txt = await fetchText(`https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`, 6000);
+  const txt = await fetchText(`https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`, 5500);
   if (!txt) return [];
   const out = [];
   const re = /<item>([\s\S]*?)<\/item>/g;
@@ -191,7 +190,7 @@ function parseTRO(html) {
 }
 async function queryTRO(kws) {
   // 单次抓取（≤9s），避免重试链拖慢整体；源通常 2-4s 返回
-  const html = await fetchText('http://www.123tro.com/', 9000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
+  const html = await fetchText('http://www.123tro.com/', 7000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
   if (!html || html.includes('502 Bad Gateway')) return { ok: false, hits: [], total: 0, updated: '' };
   const cases = parseTRO(html);
   const hits = cases.filter(c => {
@@ -212,7 +211,7 @@ const sdCache = { t: 0, data: null }; // 10 分钟缓存
 async function querySellerDefenseCases(kws) {
   if (sdCache.data && Date.now() - sdCache.t < 10 * 60 * 1000) return sdCache.data;
   // 单次抓取（≤7s），失败快速降级，绝不拖慢整体
-  const html = await fetchText('https://sellerdefense.cn/tro-sellerdefense/', 7000, { 'Accept': 'text/html,*/*' });
+  const html = await fetchText('https://sellerdefense.cn/tro-sellerdefense/', 6000, { 'Accept': 'text/html,*/*' });
   const out = { ok: !!html, hits: [], total: 0, updated: '' };
   if (!html) { sdCache.t = Date.now(); sdCache.data = out; return out; }
   // 提取案件文章（标题+链接），过滤导航/工具页
@@ -238,7 +237,7 @@ async function querySellerDefenseCases(kws) {
   if (out.hits.length) {
     const tops = out.hits.slice(0, 2);
     const details = await Promise.all(tops.map(async it => {
-      const d = await fetchText(it.url, 6000, { 'Accept': 'text/html,*/*' });
+      const d = await fetchText(it.url, 5000, { 'Accept': 'text/html,*/*' });
       if (!d) return null;
       const cn = (d.match(/\b(\d{2}-cv-\d{3,6})\b/i) || [])[1] || '';
       const courtM = d.match(/原告品牌：([^<]{2,40})/) || d.match(/原告[^<]{0,8}品牌[^<]{0,40}/);
@@ -265,7 +264,7 @@ async function fetchBrandLibraries() {
   if (libCache.data && Date.now() - libCache.t < 12 * 3600 * 1000) return libCache.data;
   const groups = await Promise.all(LIB_URLS.map(async ([lib, url]) => {
     // 单次抓取（≤8s），失败则该库为空，12h 后重试
-    const html = await fetchText(url, 8000, { 'Accept': 'text/html,*/*' });
+    const html = await fetchText(url, 6000, { 'Accept': 'text/html,*/*' });
     const brands = [];
     if (html) {
       // 格式1: **1） Ray-Ban & Oakley** / **1）Monchhichi 蒙奇奇**
