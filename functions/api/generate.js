@@ -28,24 +28,25 @@ function fallbackResult(product, category, site, sellingPoints) {
   const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
   let points = [...t.points];
   if (sellingPoints) {
-    const extra = sellingPoints.split(/[,，\n]/).filter(Boolean).slice(0, 2).map(s => s.trim());
-    if (extra.length) points.splice(0, extra.length, ...extra);
+    const extra = sellingPoints.split(/[,，\n]/).filter(Boolean).map(s => s.trim()).filter(Boolean);
+    if (extra.length) points = [...extra.slice(0, 4), ...points.filter(p => !extra.includes(p))].slice(0, 5);
   }
   if (isTiktok) {
+    const p1 = points[0] || '', p2 = points[1] || '', p3 = points[2] || '', p4 = points[3] || '', p5 = points[4] || '';
     return { source: 'template', siteType: 'tiktok',
-      tiktokTitle: product + '真实测评，看完再买 #好物推荐',
-      script30s: '家人们！这个' + product + '真的绝了！' + points.slice(0,2).join('，') + '。点击小黄车，现在有活动！',
-      script60s: '家人们今天给大家测评' + product + '。' + points.join(' ') + '现在直播间有活动，点击小黄车手慢无！',
+      tiktokTitle: product + '值不值？' + p1.slice(0, 8) + '，看完再决定',
+      script30s: '别急着买' + product + '，先说重点：' + p1 + '；' + p2 + '。这个价格能拿到这样的品质，' + product + '可以闭眼入，小黄车已挂。',
+      script60s: '今天讲清楚' + product + '值不值得买。第一，' + p1 + '；第二，' + p2 + '；第三，' + p3 + '。如果你是' + (category === '家居' ? '在租房/刚装修' : category === '3C' ? '数码党/通勤族' : category === '美妆' ? '学生党/上班族' : category === '服饰' ? '日常通勤/约会' : category === '母婴' ? '宝妈/新手爸妈' : category === '运动' ? '健身/户外爱好者' : '注重性价比') + '，这个' + product + '就是为你准备的。现在下单有活动，小黄车直接拍。',
       storyboard: [
-        { time: '0-3s', shot: '特写产品+夸张表情', line: '这个' + product + '太绝了！' },
-        { time: '3-15s', shot: '开箱展示', line: points.slice(0,2).join('，') },
-        { time: '15-30s', shot: '使用演示', line: points.slice(2,4).join('，') },
-        { time: '30-45s', shot: '细节特写', line: points[4] },
-        { time: '45-60s', shot: '引导下单', line: '点击小黄车，现在有活动！' }
+        { time: '0-3s', shot: '产品正面特写+口播开场', line: '别急着买' + product + '，先说重点。' },
+        { time: '3-15s', shot: '产品/细节实拍，配合展示', line: p1 + '。' + p2 + '。' },
+        { time: '15-30s', shot: '上手使用/场景演示', line: p3 + '，用起来是这样。' },
+        { time: '30-45s', shot: '对比/细节放大展示', line: p4 + '。' + p5 + '。' },
+        { time: '45-60s', shot: '价格+优惠收尾，指向小黄车', line: '现在下单有活动，小黄车直接拍。' }
       ],
-      hashtags: ['#好物推荐','#跨境好物','#开箱测评','#种草','#必买清单'],
-      titles: [product + '真实测评', '被问爆的' + product, product + '值不值得买'],
-      fivePoints: points, description: points.join(' ') };
+      hashtags: ['#' + (category === '3C' ? '数码好物' : category === '美妆' ? '美妆测评' : category === '服饰' ? '穿搭好物' : category === '母婴' ? '母婴好物' : category === '运动' ? '健身好物' : '居家好物'), '#开箱测评', '#好物推荐', '#种草', '#跨境好物'],
+      titles: [product + '值不值得买', product + '真实测评', '被问爆的' + product],
+      fivePoints: points, description: points.join('；') };
   }
   return { source: 'template', siteType: 'amazon',
     amazonTitle: product + ' - ' + t.kw.split(' ')[0] + ' Premium Quality, ' + points[0].slice(0,30),
@@ -78,7 +79,7 @@ export async function onRequestPost(context) {
     if (apiKey) {
       try {
         if (isTiktok) {
-          const prompt = '你是跨境电商TikTok短视频运营专家。请为产品"' + product + '"（类目：' + category + '，站点：' + site + '，卖点：' + (sellingPoints || '无') + '）生成TikTok带货内容。严格按JSON返回（不要markdown）：{"tiktokTitle":"标题20字内","script30s":"30秒口播","script60s":"60秒口播","storyboard":[{"time":"0-3s","shot":"镜头","line":"台词"}],"hashtags":["#标签"]}';
+          const prompt = '你是跨境电商TikTok短视频运营专家。为产品"' + product + '"（类目：' + category + '，站点：' + site + '，核心卖点：' + (sellingPoints || '无') + '）创作带货脚本。硬性要求：1) 口播必须全程紧扣产品本身：开头3秒用产品名+痛点钩子，中段自然说出2-3个具体卖点（优先用提供的卖点原话，没有则按品类常识展开），结尾用价格/优惠/小黄车引导转化，禁止"家人们真的绝了""太好用了"这类空泛套话；2) storyboard 每段shot写具体拍摄画面（产品特写/使用场景/对比演示），line必须是能直接念的完整台词；3) 标题20字内要带产品名或品类词。严格按JSON返回（不要markdown）：{"tiktokTitle":"标题","script30s":"30秒口播","script60s":"60秒口播","storyboard":[{"time":"0-3s","shot":"画面","line":"台词"},{"time":"3-15s","shot":"画面","line":"台词"},{"time":"15-30s","shot":"画面","line":"台词"},{"time":"30-45s","shot":"画面","line":"台词"},{"time":"45-60s","shot":"画面","line":"台词"}],"hashtags":["#标签"]}';
           const content = await callDeepSeek(apiKey, [{role:'user',content:prompt}]);
           const jsonStr = content.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
           aiResult = JSON.parse(jsonStr);
@@ -87,7 +88,7 @@ export async function onRequestPost(context) {
           aiResult.fivePoints = (TPL[category]||TPL['其他']).points;
           aiResult.description = aiResult.script60s;
         } else {
-          const prompt = '你是跨境电商' + siteName + 'Listing优化专家。请为产品"' + product + '"（类目：' + category + '，卖点：' + (sellingPoints || '无') + '）生成Listing内容。严格按JSON返回（不要markdown）：{"amazonTitle":"标题150字符内","bulletPoints":["五点1","五点2","五点3","五点4","五点5"],"description":"HTML描述A+风格","searchTerms":"后台搜索词空格分隔"}';
+          const prompt = '你是跨境电商' + siteName + ' Listing优化专家。为产品"' + product + '"（类目：' + category + '，核心卖点：' + (sellingPoints || '无') + '）生成Listing。硬性要求：1) 标题必须埋入"品类词+核心卖点词+适用人群/场景"，150字符内，读起来自然不堆砌；2) bulletPoints 每条必须具体可感知（材质/尺寸/功能/使用场景/效果），优先把提供的卖点原话改写成英文表达，禁止空泛形容词堆砌；3) searchTerms 填后台搜索词：品类词+卖点词+同义词+场景词，空格分隔，不含品牌名；4) description 用HTML段落（A+风格），把卖点和场景写成交付给顾客的完整介绍。严格按JSON返回（不要markdown）：{"amazonTitle":"标题","bulletPoints":["五点1","五点2","五点3","五点4","五点5"],"description":"HTML描述","searchTerms":"后台搜索词"}';
           const content = await callDeepSeek(apiKey, [{role:'user',content:prompt}]);
           const jsonStr = content.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
           aiResult = JSON.parse(jsonStr);
