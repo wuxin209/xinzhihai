@@ -1,3 +1,4 @@
+import { getVolcanoKey, getVolcanoEp } from './_config.js';
 // 侵权风险排查接口：联网检索 Google Patents（主）+ Google News 商标/TRO 风险（补）
 // 输入: { keywords: string[] | string, productName?: string }
 // 输出: { risk, patents[], trademarkWarnings[], summary, disclaimer, note?, updated }
@@ -231,6 +232,81 @@ function buildSearchLinks(kws) {
   ];
 }
 
+// ============ 通用排查（GET/POST 共用） ============
+async function runCheck(keywords) {
+  const [patents, news, tro] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords), queryTRO(keywords)]);
+  let risk;
+  if (tro.ok && tro.hits.length) {
+    risk = { level: 'high', label: '⚠️ TRO 起诉风险', reason: `最新美国 TRO 案件列表中有 ${tro.hits.length} 条涉及您输入的关键词（品牌/品类），强烈建议先查明原告与涉案产品，立即改款或下架，切勿盲目备货` };
+  } else if (patents.length) {
+    risk = pickRisk(patents);
+  } else {
+    risk = { level: 'manual', label: '建议人工核实', reason: '已核查最新美国 TRO 案件列表（未命中您的关键词）与专利库（自动检索暂不可用）。为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
+  }
+  return {
+    risk: risk.level,
+    riskLabel: risk.label,
+    riskReason: risk.reason,
+    patents,
+    trademarkWarnings: news,
+    tro: tro.ok ? { checked: true, total: tro.total, hits: tro.hits.slice(0, 8), updated: tro.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
+    searchLinks: buildSearchLinks(keywords),
+    keywords,
+    summary: [
+      tro.ok ? `已核查最新美国 TRO 案件 ${tro.total} 条（${tro.updated || '最新'}），命中 ${tro.hits.length} 条` : 'TRO 案件源暂不可用',
+      `侵权/TRO 资讯 ${news.length} 条`,
+      patents.length ? `自动检索专利 ${patents.length} 件` : '自动专利检索暂不可用',
+      '已生成人工核实链接'
+    ].join('；'),
+    disclaimer: DISCLAIMER,
+    updated: new Date().toLocaleString('zh-CN')
+  };
+}
+
+// ============ 火山视觉识别（图片 → 产品关键词） ============
+async function visionIdentify(image, env) {
+  const key = getVolcanoKey(env);
+  const ep = getVolcanoEp(env);
+  if (!key || !ep) return { ok: false, error: '火山视觉未配置' };
+  let imgData = image;
+  if (/^data:image\//.test(image)) imgData = image;
+  else if (/^https?:\/\//i.test(image)) imgData = image;
+  else return { ok: false, error: '图片格式不支持' };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const r = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: ep,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: imgData } },
+            { type: 'text', text: '你是跨境电商选品专家。识别图中产品，输出：1) 2~4个英文关键词（逗号分隔，用于专利和TRO侵权排查，例如 "phone case, silicone"）；2) 一句简短中文产品描述。严格按JSON格式输出：{"keywords":"英文关键词","description":"中文描述"}' }
+          ]
+        }],
+        max_tokens: 200
+      }),
+      signal: ctrl.signal
+    });
+    const d = await r.json();
+    if (!r.ok) return { ok: false, error: (d.error && d.error.message) || 'HTTP ' + r.status };
+    const content = (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
+    const m = content.match(/\{[\s\S]*?\}/);
+    if (m) {
+      try {
+        const j = JSON.parse(m[0]);
+        return { ok: true, keywords: String(j.keywords || ''), description: String(j.description || '').slice(0, 120), raw: content };
+      } catch { /* 继续走兜底 */ }
+    }
+    return { ok: true, keywords: '', description: content.slice(0, 120), raw: content };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  } finally { clearTimeout(t); }
+}
+
 export async function onRequestGet(ctx) {
   try {
     const url = new URL(ctx.request.url);
@@ -243,35 +319,37 @@ export async function onRequestGet(ctx) {
     const hit = mem.get(cacheKey);
     if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 
-    const debug = url.searchParams.get('debug') === '1';
-    const [patents, news, tro] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords), queryTRO(keywords)]);
-    let risk;
-    if (tro.ok && tro.hits.length) {
-      risk = { level: 'high', label: '⚠️ TRO 起诉风险', reason: `最新美国 TRO 案件列表中有 ${tro.hits.length} 条涉及您输入的关键词（品牌/品类），强烈建议先查明原告与涉案产品，立即改款或下架，切勿盲目备货` };
-    } else if (patents.length) {
-      risk = pickRisk(patents);
-    } else {
-      risk = { level: 'manual', label: '建议人工核实', reason: '已核查最新美国 TRO 案件列表（未命中您的关键词）与专利库（自动检索暂不可用）。为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
-    }
-    const data = {
-      risk: risk.level,
-      riskLabel: risk.label,
-      riskReason: risk.reason,
-      patents,
-      trademarkWarnings: news,
-      tro: tro.ok ? { checked: true, total: tro.total, hits: tro.hits.slice(0, 8), updated: tro.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
-      searchLinks: buildSearchLinks(keywords),
-      keywords,
-      summary: [
-        tro.ok ? `已核查最新美国 TRO 案件 ${tro.total} 条（${tro.updated || '最新'}），命中 ${tro.hits.length} 条` : 'TRO 案件源暂不可用',
-        `侵权/TRO 资讯 ${news.length} 条`,
-        patents.length ? `自动检索专利 ${patents.length} 件` : '自动专利检索暂不可用',
-        '已生成人工核实链接'
-      ].join('；'),
-      disclaimer: DISCLAIMER,
-      updated: new Date().toLocaleString('zh-CN')
-    };
+    const data = await runCheck(keywords);
     mem.set(cacheKey, { t: Date.now(), data });
+    return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  } catch (e) {
+    return new Response(JSON.stringify({ risk: 'error', patents: [], trademarkWarnings: [], searchLinks: [], summary: '排查服务异常：' + String(e && e.message || e), disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  }
+}
+
+// POST：支持上传产品图片（base64 dataURL 或公网 URL）+ 可选关键词 → 视觉识别 → 自动排查
+export async function onRequestPost(ctx) {
+  try {
+    const body = await ctx.request.json().catch(() => null);
+    const image = (body && (body.image || body.imageUrl || '')) || '';
+    const rawKw = (body && (body.keywords || '')) || '';
+    if (!image && !rawKw) {
+      return new Response(JSON.stringify({ risk: 'empty', patents: [], trademarkWarnings: [], searchLinks: [], summary: '请上传产品图片或输入产品英文关键词', disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    }
+    let vision = null;
+    let keywords = rawKw.split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+    if (image) {
+      vision = await visionIdentify(image, ctx.env);
+      if (vision.ok && vision.keywords) {
+        const vk = String(vision.keywords).split(/[,，、;；]/).map(s => s.trim()).filter(Boolean).slice(0, 3);
+        keywords = Array.from(new Set([...keywords, ...vk])).slice(0, 3);
+      }
+    }
+    if (!keywords.length) {
+      return new Response(JSON.stringify({ risk: 'empty', patents: [], trademarkWarnings: [], searchLinks: [], vision: vision || null, summary: (vision && vision.error) ? '图片识别失败：' + vision.error : '未能识别出产品关键词，请尝试输入英文关键词', disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    }
+    const data = await runCheck(keywords);
+    data.vision = vision ? { ok: vision.ok, keywords: vision.ok ? keywords : [], description: vision.description || '', error: vision.error || '' } : null;
     return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   } catch (e) {
     return new Response(JSON.stringify({ risk: 'error', patents: [], trademarkWarnings: [], searchLinks: [], summary: '排查服务异常：' + String(e && e.message || e), disclaimer: DISCLAIMER, updated: new Date().toLocaleString('zh-CN') }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });

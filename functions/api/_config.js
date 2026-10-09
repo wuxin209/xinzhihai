@@ -9,7 +9,11 @@ export function getAmapKey(env) {
 }
 export function getVolcanoKey(env) {
   if (env.VOLCANO_API_KEY) return env.VOLCANO_API_KEY;
-  try { return atob('YXBpa2V5LTIwMjYwODE1MjIxODI5LWxrd3Fr'); } catch { return ''; }
+  try { return atob('YXJrLWU3M2ZmY2RmLThkNWMtNDE4Yi1hMzUyLTkwZTgyNDQ2MDA4ZC02ZmZjYg=='); } catch { return ''; }
+}
+export function getVolcanoEp(env) {
+  if (env.VOLCANO_EP) return env.VOLCANO_EP;
+  try { return atob('ZXAtMjAyNjEwMDkyMDIxMTgtOTlzdzI='); } catch { return ''; }
 }
 export function getGithubToken(env) {
   if (env.GITHUB_TOKEN) return env.GITHUB_TOKEN;
