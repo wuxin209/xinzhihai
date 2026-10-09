@@ -190,12 +190,9 @@ function parseTRO(html) {
   return cases;
 }
 async function queryTRO(kws) {
-  let html = '';
-  for (let i = 0; i < 2 && !html; i++) {
-    html = await fetchText('http://www.123tro.com/', 9000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
-    if (!html || html.includes('502 Bad Gateway')) { html = ''; if (i === 0) await new Promise(r => setTimeout(r, 600)); }
-  }
-  if (!html) return { ok: false, hits: [], total: 0, updated: '' };
+  // 单次抓取（≤9s），避免重试链拖慢整体；源通常 2-4s 返回
+  const html = await fetchText('http://www.123tro.com/', 9000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
+  if (!html || html.includes('502 Bad Gateway')) return { ok: false, hits: [], total: 0, updated: '' };
   const cases = parseTRO(html);
   const hits = cases.filter(c => {
     const blob = (c.title + ' ' + c.brand + ' ' + c.caseNumber).toLowerCase();
@@ -214,11 +211,8 @@ async function queryTRO(kws) {
 const sdCache = { t: 0, data: null }; // 10 分钟缓存
 async function querySellerDefenseCases(kws) {
   if (sdCache.data && Date.now() - sdCache.t < 10 * 60 * 1000) return sdCache.data;
-  let html = '';
-  for (let i = 0; i < 2 && !html; i++) {
-    html = await fetchText('https://sellerdefense.cn/tro-sellerdefense/', 9000, { 'Accept': 'text/html,*/*' });
-    if (!html) { await new Promise(r => setTimeout(r, 700)); }
-  }
+  // 单次抓取（≤7s），失败快速降级，绝不拖慢整体
+  const html = await fetchText('https://sellerdefense.cn/tro-sellerdefense/', 7000, { 'Accept': 'text/html,*/*' });
   const out = { ok: !!html, hits: [], total: 0, updated: '' };
   if (!html) { sdCache.t = Date.now(); sdCache.data = out; return out; }
   // 提取案件文章（标题+链接），过滤导航/工具页
@@ -240,11 +234,11 @@ async function querySellerDefenseCases(kws) {
     return kws.some(k => { const kl = k.toLowerCase().trim(); return kl.length >= 3 && lower.includes(kl); });
   });
   out.hits = matched.slice(0, 6).map(it => ({ caseNumber: '', court: '', brand: it.title.split('！')[0].replace(/^(被告名单|原告案件\+?1|案件曝光|纽约州案件|宾夕法尼亚州发案|国人原告)[^!]{0,12}/, '').trim(), title: it.title, date: '', url: it.url }));
-  // 并发抓命中前 2 篇详情补案件号
+  // 并发抓命中前 2 篇详情补案件号（每篇 ≤6s，命中才抓）
   if (out.hits.length) {
     const tops = out.hits.slice(0, 2);
     const details = await Promise.all(tops.map(async it => {
-      const d = await fetchText(it.url, 8000, { 'Accept': 'text/html,*/*' });
+      const d = await fetchText(it.url, 6000, { 'Accept': 'text/html,*/*' });
       if (!d) return null;
       const cn = (d.match(/\b(\d{2}-cv-\d{3,6})\b/i) || [])[1] || '';
       const courtM = d.match(/原告品牌：([^<]{2,40})/) || d.match(/原告[^<]{0,8}品牌[^<]{0,40}/);
@@ -270,11 +264,8 @@ const libCache = { t: 0, data: null }; // 12 小时缓存
 async function fetchBrandLibraries() {
   if (libCache.data && Date.now() - libCache.t < 12 * 3600 * 1000) return libCache.data;
   const groups = await Promise.all(LIB_URLS.map(async ([lib, url]) => {
-    let html = '';
-    for (let i = 0; i < 2 && !html; i++) {
-      html = await fetchText(url, 9000, { 'Accept': 'text/html,*/*' });
-      if (!html) await new Promise(r => setTimeout(r, 600));
-    }
+    // 单次抓取（≤8s），失败则该库为空，12h 后重试
+    const html = await fetchText(url, 8000, { 'Accept': 'text/html,*/*' });
     const brands = [];
     if (html) {
       // 格式1: **1） Ray-Ban & Oakley** / **1）Monchhichi 蒙奇奇**
