@@ -327,6 +327,19 @@ export async function onRequestGet(ctx) {
   }
 }
 
+// OPTIONS 预检（跨域 POST 必需）
+export async function onRequestOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400'
+    }
+  });
+}
+
 // POST：支持上传产品图片（base64 dataURL 或公网 URL）+ 可选关键词 → 视觉识别 → 自动排查
 export async function onRequestPost(ctx) {
   try {
