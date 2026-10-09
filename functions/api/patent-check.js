@@ -156,6 +156,55 @@ async function queryRiskNews(kws) {
   return out;
 }
 
+// ============ TRO 每日案件源（123tro.com 服务端直出） ============
+const COURT_MAP = {
+  ilnd: '伊利诺伊州北区地方法院', pawd: '宾夕法尼亚州西区法院', nysd: '纽约南区联邦法院',
+  cacd: '加州中区法院', flsd: '佛罗里达南区法院', txnd: '德州北区法院', flmd: '佛罗里达中区法院',
+  nyed: '纽约东区联邦法院', ilcd: '伊利诺伊州中区法院', nj: '新泽西州联邦法院', masd: '马萨诸塞州联邦法院'
+};
+function parseTRO(html) {
+  const cases = [];
+  const seen = new Set();
+  const re = /"(\d{4}-cv-\d{3,5})"/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const cn = m[1];
+    if (seen.has(cn)) continue;
+    seen.add(cn);
+    const win = html.slice(m.index, m.index + 520);
+    const courtM = win.match(/"([^"]{2,16}地方法院[^"]*)"/);
+    const courtIdM = win.match(/"((?:[a-z]{3,5})-1:\d{4}-cv-)/);
+    const titleM = win.match(/"([^"]{3,200}? v\. [^"]{0,100}?)"/);
+    const brandM = win.match(/"([^"]{2,34}?[\u4e00-\u9fff][^"]{0,34})"/);
+    const dateM = win.match(/"(\d{4}-\d{2}-\d{2})"/);
+    cases.push({
+      caseNumber: cn,
+      court: (courtM && courtM[1]) || (courtIdM && COURT_MAP[courtIdM[1].slice(0, -6)]) || '美国联邦法院',
+      title: titleM ? titleM[1].slice(0, 150) : '',
+      brand: brandM ? brandM[1].slice(0, 50) : '',
+      date: dateM ? dateM[1] : '',
+      url: 'http://www.123tro.com/'
+    });
+  }
+  return cases;
+}
+async function queryTRO(kws) {
+  const html = await fetchText('http://www.123tro.com/', 9000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
+  if (!html || html.includes('502 Bad Gateway')) return { ok: false, hits: [], total: 0, updated: '' };
+  const cases = parseTRO(html);
+  const hits = cases.filter(c => {
+    const blob = (c.title + ' ' + c.brand + ' ' + c.caseNumber).toLowerCase();
+    return kws.some(k => {
+      const kl = k.toLowerCase().trim();
+      return kl.length >= 3 && blob.includes(kl);
+    });
+  });
+  // 页面内最新的案件日期（尽量找最大日期）
+  let updated = '';
+  for (const c of cases) if (c.date > updated) updated = c.date;
+  return { ok: true, hits, total: cases.length, updated };
+}
+
 function pickRisk(patents) {
   const strong = patents.filter(p => p.titleHits >= 2);
   const some = patents.filter(p => p.titleHits >= 1);
@@ -191,22 +240,30 @@ export async function onRequestGet(ctx) {
     if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 
     const debug = url.searchParams.get('debug') === '1';
-    const [patents, news] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords)]);
-    const ok = patents.length > 0;
-    const risk = ok
-      ? pickRisk(patents)
-      : { level: 'manual', label: '建议人工核实', reason: '自动专利库检索暂不可用，已为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
+    const [patents, news, tro] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords), queryTRO(keywords)]);
+    let risk;
+    if (tro.ok && tro.hits.length) {
+      risk = { level: 'high', label: '⚠️ TRO 起诉风险', reason: `最新美国 TRO 案件列表中有 ${tro.hits.length} 条涉及您输入的关键词（品牌/品类），强烈建议先查明原告与涉案产品，立即改款或下架，切勿盲目备货` };
+    } else if (patents.length) {
+      risk = pickRisk(patents);
+    } else {
+      risk = { level: 'manual', label: '建议人工核实', reason: '已核查最新美国 TRO 案件列表（未命中您的关键词）与专利库（自动检索暂不可用）。为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
+    }
     const data = {
       risk: risk.level,
       riskLabel: risk.label,
       riskReason: risk.reason,
       patents,
       trademarkWarnings: news,
+      tro: tro.ok ? { checked: true, total: tro.total, hits: tro.hits.slice(0, 8), updated: tro.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
       searchLinks: buildSearchLinks(keywords),
       keywords,
-      summary: ok
-        ? `自动检索到 ${patents.length} 件相关美国专利；${news.length} 条侵权/TRO 相关资讯；同时附上人工核实链接`
-        : `自动检索暂不可用，已生成 ${buildSearchLinks(keywords).length} 个一键人工核实链接；${news.length} 条侵权/TRO 相关资讯`,
+      summary: [
+        tro.ok ? `已核查最新美国 TRO 案件 ${tro.total} 条（${tro.updated || '最新'}），命中 ${tro.hits.length} 条` : 'TRO 案件源暂不可用',
+        `侵权/TRO 资讯 ${news.length} 条`,
+        patents.length ? `自动检索专利 ${patents.length} 件` : '自动专利检索暂不可用',
+        '已生成人工核实链接'
+      ].join('；'),
       disclaimer: DISCLAIMER,
       updated: new Date().toLocaleString('zh-CN')
     };
