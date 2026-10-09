@@ -173,13 +173,13 @@ function parseTRO(html) {
     seen.add(cn);
     const win = html.slice(m.index, m.index + 520);
     const courtM = win.match(/"([^"]{2,16}地方法院[^"]*)"/);
-    const courtIdM = win.match(/"((?:[a-z]{3,5})-1:\d{4}-cv-)/);
+    const courtIdM = win.match(/"(([a-z]{2,5})-1:\d{4}-cv-)/);
     const titleM = win.match(/"([^"]{3,200}? v\. [^"]{0,100}?)"/);
     const brandM = win.match(/"([^"]{2,34}?[\u4e00-\u9fff][^"]{0,34})"/);
     const dateM = win.match(/"(\d{4}-\d{2}-\d{2})"/);
     cases.push({
       caseNumber: cn,
-      court: (courtM && courtM[1]) || (courtIdM && COURT_MAP[courtIdM[1].slice(0, -6)]) || '美国联邦法院',
+      court: (courtM && courtM[1]) || (courtIdM && COURT_MAP[courtIdM[2]]) || '美国联邦法院',
       title: titleM ? titleM[1].slice(0, 150) : '',
       brand: brandM ? brandM[1].slice(0, 50) : '',
       date: dateM ? dateM[1] : '',
@@ -189,8 +189,12 @@ function parseTRO(html) {
   return cases;
 }
 async function queryTRO(kws) {
-  const html = await fetchText('http://www.123tro.com/', 9000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
-  if (!html || html.includes('502 Bad Gateway')) return { ok: false, hits: [], total: 0, updated: '' };
+  let html = '';
+  for (let i = 0; i < 2 && !html; i++) {
+    html = await fetchText('http://www.123tro.com/', 9000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
+    if (!html || html.includes('502 Bad Gateway')) { html = ''; if (i === 0) await new Promise(r => setTimeout(r, 600)); }
+  }
+  if (!html) return { ok: false, hits: [], total: 0, updated: '' };
   const cases = parseTRO(html);
   const hits = cases.filter(c => {
     const blob = (c.title + ' ' + c.brand + ' ' + c.caseNumber).toLowerCase();
