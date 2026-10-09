@@ -107,7 +107,7 @@ function classify(title, sourceName) {
 }
 
 async function fetchNavSite(url, sourceName, limit) {
-  const resp = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(5500) });
+  const resp = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(4200) });
   if (!resp.ok) throw new Error(sourceName + ' HTTP ' + resp.status);
   const html = await resp.text();
   return parseNavSite(html, sourceName).slice(0, limit).map(it => {
@@ -151,7 +151,7 @@ async function fetchGoogleNews() {
   await Promise.all(queries.map(async (q) => {
     try {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:7d')}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
-      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(4200) });
       if (!resp.ok) return;
       const items = parseGoogleRss(await resp.text()).slice(0, 4);
       for (const it of items) {
@@ -200,7 +200,7 @@ export async function onRequestGet() {
     fetchNavSite('https://www.tt123.com/t/', 'TT123', 13).then(v => { got.tt = Array.isArray(v) ? v : []; }).catch(() => {}),
     fetchGoogleNews().then(v => { got.g = Array.isArray(v) ? v : []; }).catch(() => {})
   ];
-  await Promise.race([Promise.all(jobs), new Promise(res => setTimeout(res, 6000))]);
+  await Promise.race([Promise.all(jobs), new Promise(res => setTimeout(res, 4500))]);
   const amz = got.amz, tt = got.tt, g = got.g;
   let news = [...amz, ...tt];
 
@@ -267,7 +267,8 @@ export async function onRequestGet() {
     count: merged.length, news: merged, items: merged,
     updated: new Date(now.getTime() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)'
   };
-  if (amz.length || tt.length || g.length) { cacheData = result; cacheTime = Date.now(); }
+  cacheData = result; cacheTime = Date.now();
+  try { caches.default.put('xzh-morning-v1', new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
   return new Response(JSON.stringify(result), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
