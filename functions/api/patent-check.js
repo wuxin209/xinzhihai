@@ -210,6 +210,102 @@ async function queryTRO(kws) {
   return { ok: true, hits, total: cases.length, updated };
 }
 
+// ============ TRO 案件源2：SellerDefense（WordPress 案件文章列表） ============
+const sdCache = { t: 0, data: null }; // 10 分钟缓存
+async function querySellerDefenseCases(kws) {
+  if (sdCache.data && Date.now() - sdCache.t < 10 * 60 * 1000) return sdCache.data;
+  let html = '';
+  for (let i = 0; i < 2 && !html; i++) {
+    html = await fetchText('https://sellerdefense.cn/tro-sellerdefense/', 9000, { 'Accept': 'text/html,*/*' });
+    if (!html) { await new Promise(r => setTimeout(r, 700)); }
+  }
+  const out = { ok: !!html, hits: [], total: 0, updated: '' };
+  if (!html) { sdCache.t = Date.now(); sdCache.data = out; return out; }
+  // 提取案件文章（标题+链接），过滤导航/工具页
+  const items = [];
+  const seen = new Set();
+  const re = /href="(https:\/\/sellerdefense\.cn\/[^"]+)"[^>]*>\s*([^<]{6,80})<\/a>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const url = m[1]; const t = m[2].trim();
+    if (seen.has(url) || /category\/|trademark|settlement|lawfirm|summary|feed|respond|comment/.test(url)) continue;
+    if (!/案件|被告|原告|维权|避雷|曝光|起诉|冻结|专利|版权|商标|TRO/i.test(t)) continue;
+    seen.add(url);
+    items.push({ title: t.slice(0, 90), url });
+  }
+  out.total = items.length;
+  // 关键词匹配标题（品牌/品类名）
+  const matched = items.filter(it => {
+    const lower = it.title.toLowerCase();
+    return kws.some(k => { const kl = k.toLowerCase().trim(); return kl.length >= 3 && lower.includes(kl); });
+  });
+  out.hits = matched.slice(0, 6).map(it => ({ caseNumber: '', court: '', brand: it.title.split('！')[0].replace(/^(被告名单|原告案件\+?1|案件曝光|纽约州案件|宾夕法尼亚州发案|国人原告)[^!]{0,12}/, '').trim(), title: it.title, date: '', url: it.url }));
+  // 并发抓命中前 2 篇详情补案件号
+  if (out.hits.length) {
+    const tops = out.hits.slice(0, 2);
+    const details = await Promise.all(tops.map(async it => {
+      const d = await fetchText(it.url, 8000, { 'Accept': 'text/html,*/*' });
+      if (!d) return null;
+      const cn = (d.match(/\b(\d{2}-cv-\d{3,6})\b/i) || [])[1] || '';
+      const courtM = d.match(/原告品牌：([^<]{2,40})/) || d.match(/原告[^<]{0,8}品牌[^<]{0,40}/);
+      return { cn, brand: (courtM && courtM[1]) ? courtM[1].slice(0, 40) : it.brand };
+    }));
+    details.forEach((d, i) => { if (d && d.cn) out.hits[i].caseNumber = d.cn; if (d && d.brand) out.hits[i].brand = d.brand; });
+  }
+  // 列表页最近的日期（归档链接里的最新日期）
+  const dm = html.match(/\/2026\/(\d{2})\/(\d{2})\//);
+  if (dm) out.updated = '2026-' + dm[1] + '-' + dm[2];
+  sdCache.t = Date.now(); sdCache.data = out;
+  return out;
+}
+
+// ============ TRO 历史品牌库（SellerDefense 四大律所品牌列表） ============
+const LIB_URLS = [
+  ['KEITH', 'https://sellerdefense.cn/keith-trademark-201905/'],
+  ['GBC', 'https://sellerdefense.cn/gbc-trademark-201905/'],
+  ['EPS', 'https://sellerdefense.cn/eps-trademark-201906/'],
+  ['DAVID', 'https://sellerdefense.cn/david-201906/']
+];
+const libCache = { t: 0, data: null }; // 12 小时缓存
+async function fetchBrandLibraries() {
+  if (libCache.data && Date.now() - libCache.t < 12 * 3600 * 1000) return libCache.data;
+  const groups = await Promise.all(LIB_URLS.map(async ([lib, url]) => {
+    let html = '';
+    for (let i = 0; i < 2 && !html; i++) {
+      html = await fetchText(url, 9000, { 'Accept': 'text/html,*/*' });
+      if (!html) await new Promise(r => setTimeout(r, 600));
+    }
+    const brands = [];
+    if (html) {
+      // 格式1: **1） Ray-Ban & Oakley** / **1）Monchhichi 蒙奇奇**
+      let re = /\*\*\s*\d+[）)]\s*([A-Z][A-Za-z0-9 &'\u0027\.\-]{2,50})(?:[\u4e00-\u9fff][^*]{0,40})?\*\*/g;
+      let mm; const seen = new Set();
+      while ((mm = re.exec(html))) { const b = mm[1].trim(); if (b.length >= 3 && !seen.has(b)) { seen.add(b); brands.push(b); } }
+      // 格式2: 1）**Monchhichi 蒙奇奇**
+      re = /\d+[）)]\s*\*\*([A-Z][A-Za-z0-9 &'\u0027\.\-]{2,50})(?:[\u4e00-\u9fff][^*]{0,40})?\*\*/g;
+      while ((mm = re.exec(html))) { const b = mm[1].trim(); if (b.length >= 3 && !seen.has(b)) { seen.add(b); brands.push(b); } }
+    }
+    return { lib, url, brands: brands.slice(0, 400) };
+  }));
+  libCache.t = Date.now(); libCache.data = groups;
+  return groups;
+}
+function normBrand(b) { return b.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+async function queryBrandLibraries(kws) {
+  const groups = await fetchBrandLibraries();
+  const klist = kws.map(normBrand).filter(n => n.length >= 3);
+  const hits = [];
+  groups.forEach(g => {
+    g.brands.forEach(b => {
+      const nb = normBrand(b);
+      if (nb.length < 4) return;
+      const hit = klist.find(k => nb.includes(k) || k.includes(nb));
+      if (hit && hits.length < 8) hits.push({ library: g.lib, brand: b, url: g.url });
+    });
+  });
+  return { checked: true, total: groups.reduce((s, g) => s + g.brands.length, 0), hits };
+}
+
 function pickRisk(patents) {
   const strong = patents.filter(p => p.titleHits >= 2);
   const some = patents.filter(p => p.titleHits >= 1);
@@ -234,14 +330,20 @@ function buildSearchLinks(kws) {
 
 // ============ 通用排查（GET/POST 共用） ============
 async function runCheck(keywords) {
-  const [patents, news, tro] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords), queryTRO(keywords)]);
+  // 第一轮并发：专利(3) + 资讯(1) + TRO两源(2)，均 ≤6 subrequest
+  const [patents, news, tro, sdCases] = await Promise.all([queryPatentsAll(keywords), queryRiskNews(keywords), queryTRO(keywords), querySellerDefenseCases(keywords)]);
+  // 第二轮：品牌库（12h 缓存，首抓 4 页）
+  const brandLib = await queryBrandLibraries(keywords);
+  const troHits = [...(tro.hits || []), ...(sdCases.hits || [])];
   let risk;
-  if (tro.ok && tro.hits.length) {
-    risk = { level: 'high', label: '⚠️ TRO 起诉风险', reason: `最新美国 TRO 案件列表中有 ${tro.hits.length} 条涉及您输入的关键词（品牌/品类），强烈建议先查明原告与涉案产品，立即改款或下架，切勿盲目备货` };
+  if (troHits.length) {
+    risk = { level: 'high', label: '⚠️ TRO 起诉风险', reason: `最新美国 TRO 案件（123tro + SellerDefense）中 ${troHits.length} 条涉及您输入的关键词（品牌/品类），强烈建议先查明原告与涉案产品，立即改款或下架，切勿盲目备货` };
+  } else if (brandLib.hits.length) {
+    risk = { level: 'high', label: '⚠️ 历史 TRO 代理品牌', reason: `“${brandLib.hits[0].brand}”出现在 SellerDefense 历史代理品牌库（${brandLib.hits.map(h => h.library).join('/')}）中，该品牌受商标保护、曾发起 TRO 维权，请核实产品是否与其冲突，避免上架仿冒/侵权产品` };
   } else if (patents.length) {
     risk = pickRisk(patents);
   } else {
-    risk = { level: 'manual', label: '建议人工核实', reason: '已核查最新美国 TRO 案件列表（未命中您的关键词）与专利库（自动检索暂不可用）。为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
+    risk = { level: 'manual', label: '建议人工核实', reason: '已核查最新美国 TRO 案件（123tro + SellerDefense，未命中）与历史代理品牌库（未命中）与专利库（自动检索暂不可用）。为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
   }
   return {
     risk: risk.level,
@@ -250,10 +352,13 @@ async function runCheck(keywords) {
     patents,
     trademarkWarnings: news,
     tro: tro.ok ? { checked: true, total: tro.total, hits: tro.hits.slice(0, 8), updated: tro.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
+    sellerDefense: sdCases.ok ? { checked: true, total: sdCases.total, hits: sdCases.hits.slice(0, 6), updated: sdCases.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
+    brandLibrary: brandLib,
     searchLinks: buildSearchLinks(keywords),
     keywords,
     summary: [
-      tro.ok ? `已核查最新美国 TRO 案件 ${tro.total} 条（${tro.updated || '最新'}），命中 ${tro.hits.length} 条` : 'TRO 案件源暂不可用',
+      troHits.length ? `TRO 双源共命中 ${troHits.length} 条（123tro ${tro.hits.length} 条 / SellerDefense ${sdCases.hits.length} 条）` : `已核查 TRO 案件：123tro ${tro.total || 0} 条 + SellerDefense ${sdCases.total || 0} 条，均未命中`,
+      brandLib.hits.length ? `历史代理品牌库命中 ${brandLib.hits.length} 个品牌` : '历史代理品牌库（Keith/GBC/EPS/David）未命中',
       `侵权/TRO 资讯 ${news.length} 条`,
       patents.length ? `自动检索专利 ${patents.length} 件` : '自动专利检索暂不可用',
       '已生成人工核实链接'
