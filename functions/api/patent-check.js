@@ -122,7 +122,7 @@ async function queryPatentsAll(kws) {
     queryDuckDuckGo(kws).catch(() => [])
   ]);
   const merged = {};
-  for (const p of [...gp, ...ddg, ...pv, ...fpo]) {
+  for (const p of [...gp, ...ddg]) {
     if (!p.patentNumber) continue;
     const k = p.patentNumber.replace(/[^A-Z0-9]/gi, '').toUpperCase();
     if (merged[k]) {
