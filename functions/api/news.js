@@ -211,7 +211,7 @@ async function collectAll(doy) {
       : Promise.resolve([])),
     fetchGoogleNews().catch(() => [])
   ];
-  const HARD_WALL = 6000; // 硬墙：到点就用已抓到的，未返回的源直接放弃，保证整体≤约6s
+  const HARD_WALL = 4500; // 硬墙：到点就用已抓到的，未返回的源直接放弃，保证整体≤约4.5s
   const got = [[], [], [], [], []];
   const jobs = tasks.map((p, i) => p.then(v => { got[i] = Array.isArray(v) ? v : []; }).catch(() => {}));
   await Promise.race([
