@@ -206,80 +206,67 @@ async function queryTRO(kws) {
   return { ok: true, hits, total: cases.length, updated };
 }
 
-// ============ TRO 案件源2：SellerDefense（WordPress 案件文章列表） ============
-const sdCache = { t: 0, data: null }; // 10 分钟缓存
+// ============ TRO 案件源2：SellerDefense API（2849+ 案件库，关键词直查） ============
 async function querySellerDefenseCases(kws) {
-  if (sdCache.data && Date.now() - sdCache.t < 10 * 60 * 1000) return sdCache.data;
-  // 单次抓取（≤7s），失败快速降级，绝不拖慢整体
-  const html = await fetchText('https://sellerdefense.cn/tro-sellerdefense/', 6000, { 'Accept': 'text/html,*/*' });
-  const out = { ok: !!html, hits: [], total: 0, updated: '' };
-  if (!html) { sdCache.t = Date.now(); sdCache.data = out; return out; }
-  // 提取案件文章（标题+链接），过滤导航/工具页
-  const items = [];
-  const seen = new Set();
-  const re = /href="(https:\/\/sellerdefense\.cn\/[^"]+)"[^>]*>\s*([^<]{6,80})<\/a>/g;
-  let m;
-  while ((m = re.exec(html))) {
-    const url = m[1]; const t = m[2].trim();
-    if (seen.has(url) || /category\/|trademark|settlement|lawfirm|summary|feed|respond|comment/.test(url)) continue;
-    if (!/案件|被告|原告|维权|避雷|曝光|起诉|冻结|专利|版权|商标|TRO/i.test(t)) continue;
-    seen.add(url);
-    items.push({ title: t.slice(0, 90), url });
-  }
-  out.total = items.length;
-  // 关键词匹配标题（品牌/品类名）
-  const matched = items.filter(it => {
-    const lower = it.title.toLowerCase();
-    return kws.some(k => { const kl = k.toLowerCase().trim(); return kl.length >= 3 && lower.includes(kl); });
+  const out = { ok: true, hits: [], total: 0, updated: '' };
+  // 前 2 个关键词并发直查（每词 ≤7s），命中即结构化案件
+  const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 3).map(async k => {
+    const url = 'https://tro.sellerdefense.cn/api/cases/search?query=' + encodeURIComponent(k.trim()) + '&page=1&size=8';
+    const txt = await fetchText(url, 7000, { 'Accept': 'application/json' });
+    if (!txt) return [];
+    try {
+      const d = JSON.parse(txt);
+      return (d && d.data && d.data.cases) || [];
+    } catch { return []; }
   });
-  out.hits = matched.slice(0, 6).map(it => ({ caseNumber: '', court: '', brand: it.title.split('！')[0].replace(/^(被告名单|原告案件\+?1|案件曝光|纽约州案件|宾夕法尼亚州发案|国人原告)[^!]{0,12}/, '').trim(), title: it.title, date: '', url: it.url }));
-  // 并发抓命中前 2 篇详情补案件号（每篇 ≤6s，命中才抓）
-  if (out.hits.length) {
-    const tops = out.hits.slice(0, 2);
-    const details = await Promise.all(tops.map(async it => {
-      const d = await fetchText(it.url, 5000, { 'Accept': 'text/html,*/*' });
-      if (!d) return null;
-      const cn = (d.match(/\b(\d{2}-cv-\d{3,6})\b/i) || [])[1] || '';
-      const courtM = d.match(/原告品牌：([^<]{2,40})/) || d.match(/原告[^<]{0,8}品牌[^<]{0,40}/);
-      return { cn, brand: (courtM && courtM[1]) ? courtM[1].slice(0, 40) : it.brand };
-    }));
-    details.forEach((d, i) => { if (d && d.cn) out.hits[i].caseNumber = d.cn; if (d && d.brand) out.hits[i].brand = d.brand; });
-  }
-  // 列表页最近的日期（归档链接里的最新日期）
-  const dm = html.match(/\/2026\/(\d{2})\/(\d{2})\//);
-  if (dm) out.updated = '2026-' + dm[1] + '-' + dm[2];
-  sdCache.t = Date.now(); sdCache.data = out;
+  const groups = await Promise.all(tasks);
+  const seen = new Set();
+  groups.flat().forEach(c => {
+    const cn = (c && c.case_number) || '';
+    if (!cn || seen.has(cn)) return;
+    seen.add(cn);
+    out.hits.push({
+      caseNumber: cn,
+      court: (c.court || '').slice(0, 60),
+      title: (c.title || '').slice(0, 140),
+      brand: (c.protection_brand || c.brand || '').slice(0, 50),
+      date: c.filed_date || '',
+      firm: c.plaintiff_law_firm || '',
+      url: 'https://tro.sellerdefense.cn/'
+    });
+  });
+  out.total = out.hits.length;
+  const dm = groups.flat().map(c => c.filed_date || '').sort().pop();
+  if (dm) out.updated = dm;
   return out;
 }
 
-// ============ TRO 历史品牌库（SellerDefense 四大律所品牌列表） ============
-const LIB_URLS = [
-  ['KEITH', 'https://sellerdefense.cn/keith-trademark-201905/'],
-  ['GBC', 'https://sellerdefense.cn/gbc-trademark-201905/'],
-  ['EPS', 'https://sellerdefense.cn/eps-trademark-201906/'],
-  ['DAVID', 'https://sellerdefense.cn/david-201906/']
+// ============ TRO 历史品牌库（内置精选 + 运行时补充） ============
+const BUILTIN_BRANDS = [
+  // SellerDefense 品牌库文字版（律所代理品牌）
+  'TOYOTA MOTOR CORPORATION','General Motors LLC','Adidas','The North Face','YETI','Goyard','OFF-WHITE','Kenzo','SPIN MASTER','IDEAVILLAGE PRODUCTS','COPPER FIT','Zippo','ORALDENT','MSM DESIGN AND ENGINEERING','RAZORBACKS','Polyblank Designs','PETS ROCK','FRIDA KAHLO','GIVENCHY','The Final Co','Marc Jacobs','Canada Goose','Bose','UGG','Calvin Klein','Swarovski','Entertainment One','Herschel Supply','Rimowa','Trias Holding','MCM','Eye Safety Systems','Monster Energy','Lululemon','Games Workshop','Popsockets','Fitness Anywhere','KENDRA SCOTT','LVMH','Sandisk','Estee Lauder','SUPREME','Christian Dior','PRL USA','Benefit Cosmetics','Versace','SUGARTOWN','Halo Acoustic Wear',
+  // 常见 TRO/侵权高发品牌补充
+  'Nirvana','NIRVANA 涅槃乐队','Monchhichi','Miffy','Bathmate','MAMAS & PAPAS','Fortnite','Motorhead','MOTORHEAD','Pokemon','POKEMON','Squishmallows','STANLEY','Harry Potter','MARVEL','LEGO','Disney','SONY','Nintendo','CHANEL','Louis Vuitton','LV','GUCCI','Rolex','Apple','Samsung','Snoopy','Peanuts','Sanrio','Hello Kitty','Care Bears','Doraemon','One Piece','Naruto','Dragon Ball','Hatsune Miku','Barbie','Transformers','BLOKEES','Super Mario','Minecraft','Roblox','Nike','Jordan','Crocs','Reebok','New Balance','Dr. Martens','Hunter','Hydro Flask','Cricut','Bunnies by the Bay','Van Cleef & Arpels','Tiffany','Cartier','Hermes','Dior','Fendi','Prada','Burberry','Ralph Lauren','Tommy Hilfiger','Under Armour','Gymshark','Tory Burch','Michael Kors','Skechers','Converse','Vans','Champion','Hanes','Fruit of the Loom','Rubik','Slime','Toyota','Honda','Ford','Jeep','Chrysler','Dodge','Chevrolet','Dyson','Dreame','Razer','Logitech','Sony PlayStation','Xbox','Nintendo Switch','Fisher-Price','Hasbro','Mattel','Monopoly','Uno','Play-Doh','Kinetic Sand','Cuphead','Among Us','Fall Guys','Animal Crossing','Zelda','Mario','Sonic','Street Fighter','Mortal Kombat','GTA','Elden Ring'
 ];
 const libCache = { t: 0, data: null }; // 12 小时缓存
 async function fetchBrandLibraries() {
   if (libCache.data && Date.now() - libCache.t < 12 * 3600 * 1000) return libCache.data;
-  const groups = await Promise.all(LIB_URLS.map(async ([lib, url]) => {
-    // 单次抓取（≤8s），失败则该库为空，12h 后重试
-    const html = await fetchText(url, 6000, { 'Accept': 'text/html,*/*' });
-    const brands = [];
-    if (html) {
-      // 格式1: **1） Ray-Ban & Oakley** / **1）Monchhichi 蒙奇奇**
-      let re = /\*\*\s*\d+[）)]\s*([A-Z][A-Za-z0-9 &'\u0027\.\-]{2,50})(?:[\u4e00-\u9fff][^*]{0,40})?\*\*/g;
-      let mm; const seen = new Set();
-      while ((mm = re.exec(html))) { const b = mm[1].trim(); if (b.length >= 3 && !seen.has(b)) { seen.add(b); brands.push(b); } }
-      // 格式2: 1）**Monchhichi 蒙奇奇**
-      re = /\d+[）)]\s*\*\*([A-Z][A-Za-z0-9 &'\u0027\.\-]{2,50})(?:[\u4e00-\u9fff][^*]{0,40})?\*\*/g;
-      while ((mm = re.exec(html))) { const b = mm[1].trim(); if (b.length >= 3 && !seen.has(b)) { seen.add(b); brands.push(b); } }
+  // 运行时尝试补充文字版品牌库（失败降级为内置清单，零风险）
+  const html = await fetchText('https://sellerdefense.cn/brands-text/', 6000, { 'Accept': 'text/html,*/*' });
+  const brands = [...BUILTIN_BRANDS];
+  if (html) {
+    const re = /\b([A-Z][A-Za-z0-9 &'\u0027\.\-]{2,45})\b/g;
+    let m; const seen = new Set(brands.map(b => b.toUpperCase()));
+    while ((m = re.exec(html))) {
+      const b = m[1].trim();
+      const nb = b.toUpperCase();
+      if (b.length >= 3 && !seen.has(nb) && !/^[A-Z\s]{1,4}$/.test(nb)) { seen.add(nb); brands.push(b); }
     }
-    return { lib, url, brands: brands.slice(0, 400) };
-  }));
-  libCache.t = Date.now(); libCache.data = groups;
-  return groups;
+  }
+  libCache.t = Date.now(); libCache.data = [{ lib: 'SellerDefense', url: 'https://sellerdefense.cn/brands-text/', brands: brands.slice(0, 500) }];
+  return libCache.data;
 }
+
 function normBrand(b) { return b.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 async function queryBrandLibraries(kws) {
   const groups = await fetchBrandLibraries();
@@ -348,7 +335,7 @@ async function runCheck(keywords) {
     keywords,
     summary: [
       troHits.length ? `TRO 双源共命中 ${troHits.length} 条（123tro ${tro.hits.length} 条 / SellerDefense ${sdCases.hits.length} 条）` : `已核查 TRO 案件：123tro ${tro.total || 0} 条 + SellerDefense ${sdCases.total || 0} 条，均未命中`,
-      brandLib.hits.length ? `历史代理品牌库命中 ${brandLib.hits.length} 个品牌` : '历史代理品牌库（Keith/GBC/EPS/David）未命中',
+      brandLib.hits.length ? `历史代理品牌库命中 ${brandLib.hits.length} 个品牌` : '历史代理品牌库（内置+文字版）未命中',
       `侵权/TRO 资讯 ${news.length} 条`,
       patents.length ? `自动检索专利 ${patents.length} 件` : '自动专利检索暂不可用',
       '已生成人工核实链接'
