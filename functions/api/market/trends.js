@@ -270,18 +270,18 @@ async function handle({ request }) {
 
   const doy = dayOfYear();
 
-  // ===== 关键词搜索：联网热度判断（Google News 近期资讯 + AMZ123 TOP 1-160 命中）=====
+  // ===== 关键词搜索：联网热度判断（Bing 网页搜索结果标题 + AMZ123 TOP 1-160 命中）=====
   if (kwQ) {
     const qs = kwQ.split(/\s+/).filter(Boolean);
     const dec = (s) => (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
-    // 源1: Google News RSS 搜索该关键词近期资讯（当:14d，判断是否受欢迎）
+    // 源1: Bing 网页搜索（模拟"浏览器前三页"，解析结果标题判断是否受欢迎）
     const newsTitles = [];
-    const gUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(kwQ + ' when:14d') + '&hl=en-US&gl=US&ceid=US:en';
+    const bUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(kwQ) + '&count=30';
     await Promise.race([
-      fetchText(gUrl, 6000).then(html => {
-        for (const m of [...html.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 12)) {
-          const t = dec(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || ''));
-          if (t && !newsTitles.includes(t)) newsTitles.push(t);
+      fetchText(bUrl, 6000).then(html => {
+        for (const m of [...html.matchAll(/<h2><a[^>]*>(.*?)<\/a><\/h2>/g)].slice(0, 12)) {
+          const t = dec(m[1].replace(/<[^>]+>/g, ''));
+          if (t && t.length > 3 && !newsTitles.includes(t)) newsTitles.push(t);
         }
       }).catch(() => {}),
       new Promise(r => setTimeout(r, 6100))
@@ -305,7 +305,7 @@ async function handle({ request }) {
     const verdict = hitCount >= 3 ? '热门' : hitCount >= 1 ? '一般' : '未收录';
     const reasonBase = verdict === '未收录'
       ? '近期未收录到热度数据，建议自行查阅亚马逊ABA后台或Google Trends'
-      : '联网热度判断：' + verdict + '（关键词「' + kwQ + '」' + (kwHitNews.length ? '近14天Google资讯' + kwHitNews.length + '条' : '') + (hitWords.length ? (kwHitNews.length ? '、' : '') + '命中AMZ123 TOP榜' + hitWords.length + '个词' : '') + '）';
+      : '联网热度判断：' + verdict + '（关键词「' + kwQ + '」' + (kwHitNews.length ? 'Bing搜索前' + Math.min(newsTitles.length, 12) + '条结果' : '') + (hitWords.length ? (kwHitNews.length ? '、' : '') + '命中AMZ123 TOP榜' + hitWords.length + '个词' : '') + '）';
     const searchKw = hitWords.slice(0, 6).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: verdict === '热门' ? '高' : '中', reason: reasonBase, viralPoint: '相关热搜词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
     // 资讯标题高频词补充（出现频次最高的词，作为"前三页最多出现的"判断）
     const STOP = new Set(['the','and','for','are','with','that','this','from','have','has','your','youre','will','was','were','not','but','all','can','its','new','now','per','amazon','google','news']);
@@ -315,11 +315,11 @@ async function handle({ request }) {
         if (w.length > 3 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1;
       }
     }
-    const topFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([w], i) => ({ id: 'nw-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '关键词「' + kwQ + '」近期Google资讯高频词（近14天' + kwHitNews.length + '条资讯统计）', viralPoint: '资讯高频词：' + w, platform: 'Google', seasonTrend: '近14天', cargoTags: '热搜词', live: true, search: true }));
+    const topFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([w], i) => ({ id: 'nw-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '关键词「' + kwQ + '」Bing搜索高频词（前' + Math.min(newsTitles.length, 12) + '条结果统计）', viralPoint: '搜索高频词：' + w, platform: 'Bing', seasonTrend: '实时', cargoTags: '热搜词', live: true, search: true }));
     const merged = [...searchKw, ...topFreq].slice(0, 6);
     const result = {
-      search: { q: kwQ, hit: merged.length, verdict, newsCount: kwHitNews.length },
-      source: newsTitles.length ? 'live:GoogleNews+AMZ123' : (hitWords.length ? 'live:AMZ123' : '未收录'),
+      search: { q: kwQ, hit: merged.length, verdict, newsCount: newsTitles.length },
+      source: newsTitles.length ? 'live:BingSearch+AMZ123' : (hitWords.length ? 'live:AMZ123' : '未收录'),
       country, flag, count: merged.length,
       liveCount: merged.length,
       keywords: merged, trends: [],
