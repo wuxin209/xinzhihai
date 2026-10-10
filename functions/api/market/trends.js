@@ -326,13 +326,21 @@ async function handle({ request }) {
     words.push(...(KW_FLOOR[country] || []));
     // 本次抓取的 Google 每日热搜
     words.push(...kwLive.map(k => k.name || ''));
-    // 去重 + 包含匹配（支持空格多词 AND 匹配）
+    // 去重 + 包含匹配（空格多词 AND 优先；0 命中时降级为 OR 相关词匹配，避免搜索无反应）
     const unique = [...new Set(words.map(w => String(w).trim()).filter(Boolean))];
     const qs = kwQ.split(/\s+/).filter(Boolean);
-    const hit = unique.filter(w => {
+    let hit = unique.filter(w => {
       const wl = w.toLowerCase();
       return qs.every(q => q && wl.includes(q));
-    }).slice(0, 10);
+    });
+    if (!hit.length && qs.length > 1) {
+      // AND 无结果 → OR 相关词（如 wall art → wall 或 art 相关词）
+      hit = unique.filter(w => {
+        const wl = w.toLowerCase();
+        return qs.some(q => q && wl.includes(q));
+      });
+    }
+    hit = hit.slice(0, 10);
     searchKw = hit.map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（多源实时匹配）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
     if (!searchKw) searchKw = [];
   }
