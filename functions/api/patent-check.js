@@ -456,18 +456,37 @@ const TEAM_DB = [
   { kw: 'motivational poster', src: '侵权图库', note: '励志海报（7 Life Rules 等）' },
   { kw: 'family tree', src: '侵权图库', note: '族谱海报' },
   { kw: 'retro french advertising', src: '侵权图库', note: '复古法国广告海报' },
-  { kw: 'meridians', src: '侵权图库', note: '人体经络' }
+  { kw: 'meridians', src: '侵权图库', note: '人体经络' },
+  // ---- 图库贰 Life Rules 励志海报系列 原始词条（勿泛化删除） ----
+  { kw: 'life rules', src: '侵权图库', note: 'Life Rules 励志海报系列（7 Life Rules 等）' },
+  { kw: 'life rules inspirational posters', src: '侵权图库', note: 'Life Rules 励志海报原词条' },
+  { kw: '7 life rules inspirational posters', src: '侵权图库', note: '7 Life Rules 励志海报' },
+  { kw: '7 life rules', src: '侵权图库', note: '7 Life Rules 励志海报' },
+  { kw: 'inspirational posters', src: '侵权图库', note: '励志海报通用词' },
+  { kw: 'inspirational poster', src: '侵权图库', note: '励志海报通用词' },
+  { kw: 'motivational posters', src: '侵权图库', note: '励志海报通用词' },
+  { kw: 'title not found motivational', src: '侵权图库', note: '冰山激励短名海报' },
+  { kw: 'propaganda posters', src: '侵权图库', note: '政治宣传类海报（违反受限商品政策）' }
 ];
 
 function queryTeamDb(kws) {
-  const klist = kws.map(k => k.toLowerCase().trim()).filter(k => k.length >= 2);
-  const hits = [];
-  for (const item of TEAM_DB) {
-    const kw = item.kw.toLowerCase();
-    const hit = klist.find(k => kw.includes(k) || k.includes(kw));
-    if (hit && hits.length < 10) hits.push({ kw: item.kw, src: item.src, note: item.note || '', hit });
+  // 匹配优先级：整体输入词优先（可命中 Life Rules 等长尾原词）→ 无命中才回退长分词(≥4)，避免短词噪音误报
+  const raw = kws.join(' ').toLowerCase().trim();
+  const parts = kws.map(k => k.toLowerCase().trim()).filter(k => k.length >= 4);
+  const collect = (list) => {
+    const hits = [];
+    for (const item of TEAM_DB) {
+      const kw = item.kw.toLowerCase();
+      const hit = list.find(k => kw.includes(k) || k.includes(kw));
+      if (hit && hits.length < 10) hits.push({ kw: item.kw, src: item.src, note: item.note || '', hit });
+    }
+    return hits;
+  };
+  if (raw.length >= 2) {
+    const hits = collect([raw]);
+    if (hits.length) return hits;
   }
-  return hits;
+  return collect(parts);
 }
 
 const libCache = { t: 0, data: null }; // 12 小时缓存
