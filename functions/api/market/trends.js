@@ -217,6 +217,7 @@ async function handle({ request }) {
   let country = url.searchParams.get('country') || '美国';
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '6', 10) || 6, 12);
   const refresh = url.searchParams.get('refresh') === '1';
+  const kwQ = (url.searchParams.get('q') || '').trim().toLowerCase();
   if (!FLOOR[country]) country = '美国';
   const cfg = COUNTRY[country];
   const flag = cfg.flag;
@@ -270,10 +271,23 @@ async function handle({ request }) {
   const kwFloor = KW_FLOOR[country] || [];
   const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
     .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
-  const keywords = [];
-  for (const it of kwLive) { if (keywords.length >= 6) break; keywords.push(it); }
-  for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
-  while (keywords.length < 6 && kwRot.length) keywords.push(kwRot[keywords.length % kwRot.length]);
+  // 关键词搜索模式：q 存在时从 AMZ123 各国榜实时抓全量热销词按关键词过滤（未匹配返回空+提示前端）
+  let searchKw = null;
+  if (kwQ) {
+    const topUrl = AMZ123_TOP[country];
+    if (topUrl) {
+      const words = await fetchText(topUrl, 5000).then(h => parseTopWords(h, 120)).catch(() => []);
+      const hit = words.filter(w => w.toLowerCase().includes(kwQ));
+      searchKw = hit.slice(0, 10).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（来源：AMZ123实时抓取）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
+    }
+    if (!searchKw) searchKw = [];
+  }
+  const keywords = searchKw !== null ? searchKw : [];
+  if (searchKw === null) {
+    for (const it of kwLive) { if (keywords.length >= 6) break; keywords.push(it); }
+    for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
+    while (keywords.length < 6 && kwRot.length) keywords.push(kwRot[keywords.length % kwRot.length]);
+  }
 
   // ④ 趋势产品：live 趋势资讯（Google/早报/TT123）优先，FLOOR 兜底，补足到 limit
   const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitter)
@@ -283,7 +297,8 @@ async function handle({ request }) {
   for (const it of floor) { if (trends.length >= limit) break; trends.push(it); }
   while (trends.length < limit && floor.length) trends.push(floor[trends.length % floor.length]);
 
-  const result = {
+    const result = {
+    search: kwQ ? { q: kwQ, hit: searchKw ? searchKw.length : 0 } : undefined,
     source: sources.length ? 'live:' + sources.join('+') : 'curated-floor',
     country, flag, count: keywords.length + trends.length,
     liveCount: kwLive.length + live.length,
