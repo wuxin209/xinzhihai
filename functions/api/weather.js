@@ -250,40 +250,29 @@ export async function onRequestGet(context) {
     const t = weatherData.current.temp;
     const tempBand = t >= 33 ? 'hot' : t >= 28 ? 'warm' : t >= 22 ? 'mild' : t >= 15 ? 'cool' : t >= 8 ? 'chilly' : 'cold';
     const OUTFITS = {
-      hot: { A: '短袖T恤+冰丝短裤+透气运动鞋+防晒帽', B: '宽松衬衫+棉麻长裤+帆布鞋+墨镜', C: '速干背心+五分裤+洞洞鞋+冰袖' },
-      warm: { A: '短袖+薄长裤+帆布鞋', B: 'T恤+牛仔短裤+小白鞋+防晒衣', C: 'polo衫+休闲裤+乐福鞋' },
-      mild: { A: '长袖+薄外套+休闲裤', B: '衬衫+针织开衫+牛仔裤', C: '卫衣+休闲裤+运动鞋' },
-      cool: { A: '长袖+薄夹克+牛仔裤', B: '针织衫+风衣+休闲裤', C: '卫衣+工装裤+板鞋' },
-      chilly: { A: '毛衣+厚外套+休闲裤', B: '打底衫+羽绒马甲+加绒裤', C: '厚卫衣+棉服+运动鞋' },
-      cold: { A: '羽绒服+保暖内衣+加绒裤', B: '大衣+高领毛衣+雪地靴', C: '棉服+羊毛衫+加厚休闲裤' }
+      hot: { A: '短袖T恤(白/浅灰)+冰丝短裤(卡其)+透气运动鞋+防晒帽', B: '宽松衬衫(浅蓝)+棉麻长裤(米白)+帆布鞋+墨镜', C: '速干背心(薄荷绿)+五分裤(深灰)+洞洞鞋+冰袖' },
+      warm: { A: '短袖(白)+薄长裤(浅卡其)+帆布鞋', B: 'T恤(藏青)+牛仔短裤(蓝)+小白鞋+防晒衣(浅粉)', C: 'polo衫(墨绿)+休闲裤(灰)+乐福鞋' },
+      mild: { A: '长袖(浅杏)+薄外套(灰蓝)+休闲裤(黑)', B: '衬衫(白)+针织开衫(燕麦色)+牛仔裤(蓝)', C: '卫衣(雾霾蓝)+休闲裤(卡其)+运动鞋' },
+      cool: { A: '长袖(白)+薄夹克(军绿)+牛仔裤(深蓝)', B: '针织衫(米色)+风衣(驼色)+休闲裤(黑)', C: '卫衣(酒红)+工装裤(军绿)+板鞋' },
+      chilly: { A: '毛衣(浅灰)+厚外套(藏青)+休闲裤(黑)', B: '打底衫(黑)+羽绒马甲(卡其)+加绒裤(深灰)', C: '厚卫衣(姜黄)+棉服(灰)+运动鞋' },
+      cold: { A: '羽绒服(黑)+保暖内衣(白)+加绒裤(深灰)', B: '大衣(驼色)+高领毛衣(米白)+雪地靴(棕)', C: '棉服(军绿)+羊毛衫(酒红)+加厚休闲裤(黑)' }
     };
     const outfitBase = OUTFITS[tempBand] || OUTFITS.mild;
     const outfitABC = { A: outfitBase.A, B: outfitBase.B, C: outfitBase.C };
     const outfit = outfitABC.A;
-    const notes = [];
+    const notes = [
+      '紫外线较强，外出请做好防晒措施',
+      '多喝水补充水分，避免中暑',
+      '避免长时间户外暴晒，正午尽量减少外出',
+      '天气多变，包里揣把折叠伞总没错',
+      '天气影响物流时效，发货前请与货代确认时效'
+    ];
     const w = weatherData.current.weather;
     const nDate = new Date();
     const doyN = Math.floor((nDate - new Date(nDate.getFullYear(), 0, 0)) / 86400000);
-    const pickPool = (pool) => pool[doyN % pool.length];
-    const sunnyPool = ['晴空万里，适合安排外出验货或拍摄产品实拍图', '阳光正好，适合拍摄白底主图，光线充足', '天气晴朗，户外作业注意补水和防晒', '晴好天气，适合整理仓库、盘点和发货'];
-    const cloudyPool = ['多云天气，体感舒适，适合外出办事', '云量较多，光线柔和适合拍细节图', '多云间晴，适合安排拜访或仓库整理'];
-    const rainyPool = ['有雨，记得带伞，货件包装务必加防潮袋', '雨天路滑，发货包裹注意防潮防湿', '降雨天气，外出携带雨具，仓库门窗关好'];
-    const windyPool = ['风力较大，注意高空坠物，打包发货加固处理', '风大，露天装卸货注意安全'];
-    const snowyPool = ['降雪天气，注意保暖，路面湿滑出行小心', '下雪天，货件注意防冻，出行防滑'];
-    if (w.includes('雨') || w.includes('雷暴') || w.includes('暴雨')) notes.push(pickPool(rainyPool));
-    else if (w.includes('雪')) notes.push(pickPool(snowyPool));
-    else if (w.includes('晴')) notes.push(pickPool(sunnyPool));
-    else if (w.includes('云') || w.includes('阴') || w.includes('雾')) notes.push(pickPool(cloudyPool));
-    else notes.push(pickPool(sunnyPool));
-    if (t >= 35) notes.push('高温预警，注意防暑，避免长时间户外作业');
-    else if (t <= 5) notes.push('低温天气，注意保暖，货件注意防冻');
-    if (weatherData.weather[0].rain >= 60) notes.push('今日降水概率 ' + weatherData.weather[0].rain + '%，发货包裹务必加防潮措施');
-    if (weatherData.current.wind >= 30) notes.push('大风天气，注意安全，户外作业加固');
-    const miscPool = ['跨境电商日报记得抽空看，行情都在里面', '旺季在即，备货计划今天抽时间过一遍', '新品上架前记得跑一遍侵权风险排查', '今日汇率已更新，报价前先看利润测算', '发货前核对FBA箱规，避免超长超重', '今日待办按时完成，保持连续打卡'];
-    notes.push(miscPool[(doyN * 3 + 1) % miscPool.length]);
-    const seenN = new Set();
-    const notesOut = notes.filter(n2 => { const k2 = n2.slice(0, 10); if (seenN.has(k2)) return false; seenN.add(k2); return true; }).slice(0, 4);
-    const notesFinal = notesOut;
+    // 首条按当日天气微调措辞（晴/雨/风/低温分支），其余4条固定
+    const firstByWeather = w.includes('雨') || w.includes('雷暴') || w.includes('暴雨') ? '今日有雨，外出带伞，货件包装务必防潮' : w.includes('雪') ? '今日降雪，注意保暖，货件防冻' : w.includes('晴') ? '今日晴朗，紫外线较强，外出请做好防晒措施' : w.includes('风') ? '今日风力较大，户外作业注意安全加固' : '今日天气平稳，紫外线较强，外出请做好防晒措施';
+    const notesFinal = [firstByWeather, ...notes.slice(1)];
 
     // 目标国重大灾害预警（曼谷/泰国置顶；失败不影响主天气数据）
     let disasters = [];
