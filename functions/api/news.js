@@ -274,6 +274,7 @@ export async function onRequestGet() {
 
   // ⑤ 其余政策坑位（政策法规/合规预警）：live + 人工池补足 POLICY_MIN 条
   const livePolicy = pool.filter(n => isPolicy(n.tag) && n.tag !== '海关要闻');
+  const liveOther = pool.filter(n => !isPolicy(n.tag));
   const policyRest = [...livePolicy];
   const existP = new Set([...customsBlock, ...policyRest].map(n => n.title.slice(0, 12)));
   const rotatedP = CUSTOMS_POLICY.map((x, i) => CUSTOMS_POLICY[(i + doy) % CUSTOMS_POLICY.length]).filter(x => x.tag !== '海关要闻');
