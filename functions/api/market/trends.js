@@ -274,27 +274,25 @@ async function handle({ request }) {
   if (kwQ) {
     const qs = kwQ.split(/\s+/).filter(Boolean);
     const dec = (s) => (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
-    // 源1: Bing 网页搜索（模拟"浏览器前三页"，解析结果标题判断是否受欢迎）
+    // 源1+源2 并行：Bing 网页搜索（模拟"浏览器前三页"）+ AMZ123 TOP 1-160 词命中，整体 8s 硬截止
     const newsTitles = [];
+    let topWords = [];
+    const topUrl = AMZ123_TOP[country];
     const bUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(kwQ) + '&count=30';
     await Promise.race([
-      fetchText(bUrl, 6000).then(html => {
-        for (const m of [...html.matchAll(/<h2><a[^>]*>(.*?)<\/a><\/h2>/g)].slice(0, 12)) {
-          const t = dec(m[1].replace(/<[^>]+>/g, ''));
-          if (t && t.length > 3 && !newsTitles.includes(t)) newsTitles.push(t);
-        }
-      }).catch(() => {}),
-      new Promise(r => setTimeout(r, 6100))
+      Promise.all([
+        fetchText(bUrl, 6000).then(html => {
+          for (const m of [...html.matchAll(/<h2><a[^>]*>(.*?)<\/a><\/h2>/g)].slice(0, 12)) {
+            const t = dec(m[1].replace(/<[^>]+>/g, ''));
+            if (t && t.length > 3 && !newsTitles.includes(t)) newsTitles.push(t);
+          }
+        }).catch(() => {}),
+        topUrl
+          ? fetchText(topUrl, 5000).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
+          : Promise.resolve()
+      ]),
+      new Promise(r => setTimeout(r, 8000))
     ]);
-    // 源2: AMZ123 TOP 1-160 词命中
-    const topWords = [];
-    const topUrl = AMZ123_TOP[country];
-    if (topUrl) {
-      await Promise.race([
-        fetchText(topUrl, 5000).then(h => { topWords.push(...parseTopWords(h, 160)); }).catch(() => {}),
-        new Promise(r => setTimeout(r, 5100))
-      ]);
-    }
     const kwLow = kwQ.toLowerCase();
     const hitWords = [...new Set(topWords.map(w => String(w).trim()).filter(w => {
       const wl = w.toLowerCase();
