@@ -309,23 +309,25 @@ async function handle({ request }) {
   const kwFloor = KW_FLOOR[country] || [];
   const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
     .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
-  // 关键词搜索模式：多源匹配（AMZ123实时TOP榜 + 当日缓存热搜词 + 本地兜底池 + 本次Google热搜），大幅提升命中率
+  // 关键词搜索模式：本地池/缓存词即时匹配为主（毫秒级返回），AMZ123 实时榜并行增强（≤3.5s，失败静默）
   let searchKw = null;
   if (kwQ) {
     const words = [];
-    const topUrl = AMZ123_TOP[country];
-    if (topUrl) {
-      // 实时抓取 TOP 榜（放宽到 200 词提高覆盖面），失败静默走其他源
-      const w = await fetchText(topUrl, 5000).then(h => parseTopWords(h, 200)).catch(() => []);
-      words.push(...w);
-    }
-    // 当日缓存中的热搜词（避免每次搜索都干等联网）
+    // 即时源①：当日缓存中的热搜词（避免每次搜索都干等联网）
     const memHit = mem.get(country);
     if (memHit && memHit.data) words.push(...(memHit.data.keywords || []).map(k => k.name || ''));
-    // 本地兜底池（美/加/日/韩/泰/墨都有）
+    // 即时源②：本地兜底池（美/加/日/韩/泰/墨都有）
     words.push(...(KW_FLOOR[country] || []));
-    // 本次抓取的 Google 每日热搜
+    // 即时源③：本次抓取的 Google 每日热搜 / AMZ123 热销词
     words.push(...kwLive.map(k => k.name || ''));
+    // 增强源④：AMZ123 实时 TOP 榜（并行抓取，最多等 3.5s，慢/失败不阻塞返回）
+    const topUrl = AMZ123_TOP[country];
+    if (topUrl) {
+      await Promise.race([
+        fetchText(topUrl, 3500).then(h => { words.push(...parseTopWords(h, 200)); }).catch(() => {}),
+        new Promise(r => setTimeout(r, 3600))
+      ]);
+    }
     // 去重 + 包含匹配（空格多词 AND 优先；0 命中时降级为 OR 相关词匹配，避免搜索无反应）
     const unique = [...new Set(words.map(w => String(w).trim()).filter(Boolean))];
     const qs = kwQ.split(/\s+/).filter(Boolean);
