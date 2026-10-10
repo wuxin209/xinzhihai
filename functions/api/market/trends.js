@@ -263,6 +263,41 @@ async function handle({ request }) {
   }
 
   const doy = dayOfYear();
+
+  // ===== 关键词搜索快速分支：只抓 AMZ123 实时榜 + 本地/缓存池，不跑趋势重活，3-4s 返回 =====
+  if (kwQ) {
+    const words = [];
+    const memHit = mem.get(country);
+    if (memHit && memHit.data) words.push(...(memHit.data.keywords || []).map(k => k.name || ''));
+    words.push(...(KW_FLOOR[country] || []));
+    const topUrl = AMZ123_TOP[country];
+    if (topUrl) {
+      await Promise.race([
+        fetchText(topUrl, 3500).then(h => { words.push(...parseTopWords(h, 200)); }).catch(() => {}),
+        new Promise(r => setTimeout(r, 3600))
+      ]);
+    }
+    const unique = [...new Set(words.map(w => String(w).trim()).filter(Boolean))];
+    const qs = kwQ.split(/\s+/).filter(Boolean);
+    let hit = unique.filter(w => { const wl = w.toLowerCase(); return qs.every(q => q && wl.includes(q)); });
+    if (!hit.length && qs.length > 1) hit = unique.filter(w => { const wl = w.toLowerCase(); return qs.some(q => q && wl.includes(q)); });
+    const searchKw = hit.slice(0, 10).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（多源实时匹配）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
+    const jitterS = refresh ? Math.floor(Math.random() * 100000) : 0;
+    const floorS = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitterS)
+      .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
+    const trends = floorS.slice(0, limit);
+    const result = {
+      search: { q: kwQ, hit: searchKw.length },
+      source: searchKw.length ? 'live:AMZ123实时+本地热搜词' : 'curated-floor',
+      country, flag, count: searchKw.length + trends.length,
+      liveCount: searchKw.length,
+      keywords: searchKw, trends,
+      items: [...searchKw, ...trends],
+      updated: new Date().toLocaleString('zh-CN')
+    };
+    mem.set(country, { t: Date.now(), ttl: 5 * 60 * 1000, data: result });
+    return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  }
   const sources = [];
   const live = [];
   const kwLive = [];
@@ -309,49 +344,10 @@ async function handle({ request }) {
   const kwFloor = KW_FLOOR[country] || [];
   const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
     .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
-  // 关键词搜索模式：本地池/缓存词即时匹配为主（毫秒级返回），AMZ123 实时榜并行增强（≤3.5s，失败静默）
-  let searchKw = null;
-  if (kwQ) {
-    const words = [];
-    // 即时源①：当日缓存中的热搜词（避免每次搜索都干等联网）
-    const memHit = mem.get(country);
-    if (memHit && memHit.data) words.push(...(memHit.data.keywords || []).map(k => k.name || ''));
-    // 即时源②：本地兜底池（美/加/日/韩/泰/墨都有）
-    words.push(...(KW_FLOOR[country] || []));
-    // 即时源③：本次抓取的 Google 每日热搜 / AMZ123 热销词
-    words.push(...kwLive.map(k => k.name || ''));
-    // 增强源④：AMZ123 实时 TOP 榜（并行抓取，最多等 3.5s，慢/失败不阻塞返回）
-    const topUrl = AMZ123_TOP[country];
-    if (topUrl) {
-      await Promise.race([
-        fetchText(topUrl, 3500).then(h => { words.push(...parseTopWords(h, 200)); }).catch(() => {}),
-        new Promise(r => setTimeout(r, 3600))
-      ]);
-    }
-    // 去重 + 包含匹配（空格多词 AND 优先；0 命中时降级为 OR 相关词匹配，避免搜索无反应）
-    const unique = [...new Set(words.map(w => String(w).trim()).filter(Boolean))];
-    const qs = kwQ.split(/\s+/).filter(Boolean);
-    let hit = unique.filter(w => {
-      const wl = w.toLowerCase();
-      return qs.every(q => q && wl.includes(q));
-    });
-    if (!hit.length && qs.length > 1) {
-      // AND 无结果 → OR 相关词（如 wall art → wall 或 art 相关词）
-      hit = unique.filter(w => {
-        const wl = w.toLowerCase();
-        return qs.some(q => q && wl.includes(q));
-      });
-    }
-    hit = hit.slice(0, 10);
-    searchKw = hit.map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（多源实时匹配）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
-    if (!searchKw) searchKw = [];
-  }
-  const keywords = searchKw !== null ? searchKw : [];
-  if (searchKw === null) {
-    for (const it of kwLive) { if (keywords.length >= 6) break; keywords.push(it); }
-    for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
-    while (keywords.length < 6 && kwRot.length) keywords.push(kwRot[keywords.length % kwRot.length]);
-  }
+  const keywords = [];
+  for (const it of kwLive) { if (keywords.length >= 6) break; keywords.push(it); }
+  for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
+  while (keywords.length < 6 && kwRot.length) keywords.push(kwRot[keywords.length % kwRot.length]);
 
   // ④ 趋势产品：live 趋势资讯（Google/早报/TT123）优先，FLOOR 兜底，补足到 limit
   const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitter)
