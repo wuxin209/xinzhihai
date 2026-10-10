@@ -255,7 +255,8 @@ async function handle({ request }) {
   const cfg = COUNTRY[country];
   const flag = cfg.flag;
 
-  if (!refresh) {
+  // 默认模式缓存（搜索请求 q 存在时跳过缓存，必须实时搜索）
+  if (!refresh && !kwQ) {
     const hit = mem.get(country);
     if (hit && Date.now() - hit.t < hit.ttl) {
       return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
@@ -295,7 +296,7 @@ async function handle({ request }) {
       items: [...searchKw, ...trends],
       updated: new Date().toLocaleString('zh-CN')
     };
-    mem.set(country, { t: Date.now(), ttl: 5 * 60 * 1000, data: result });
+    // 搜索结果不写 mem（避免污染默认缓存；搜索本身需实时）
     return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   }
   const sources = [];
