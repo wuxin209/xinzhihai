@@ -24,6 +24,10 @@ function dayOfYear() {
 // 人工精选：海关/外贸/目标国政策（固定保证板块，2026年9月）
 const CUSTOMS_POLICY = [
   { flag: '🇨🇳', country: '中国', title: '海关总署：上半年跨境电商进出口同比增长15.6%', summary: '2026年上半年我国跨境电商进出口总额达1.32万亿元，同比增长15.6%，出口占比超70%，海关持续推进B2B出口监管改革和退换货中心建设。', tag: '海关要闻' },
+  { flag: '🇨🇳', country: '中国', title: '海关总署：出口海外仓备案企业超3万家，9810预退税提速', summary: '海关优化9810出口海外仓监管，备案企业已超3万家，符合条件的货物可申报预退税，缓解旺季备货资金压力，建议有海外仓的卖家优先走9810模式。', tag: '海关要闻' },
+  { flag: '🇺🇸', country: '美国', title: '美国301关税复审：部分商品豁免清单更新，卖家需核对HTS编码', summary: '美国对华301关税进入复审期，部分品类豁免与排除清单更新，涉及家居、电子配件等类目，上架前务必按最新HTS编码核对税率，避免清关成本暴增。', tag: '海关要闻' },
+  { flag: '🇪🇺', country: '欧盟', title: '欧盟海关改革过渡期：低值货物申报与安全数据要求更新', summary: '欧盟新海关法进入过渡实施阶段，低值货物进口申报、安全与安保数据要求逐步收紧，直邮小包卖家务必备齐收货人EORI及产品申报要素。', tag: '海关要闻' },
+  { flag: '🇨🇳', country: '中国', title: '海关总署：加工贸易账册改革落地，企业可"一册多核销"', summary: '加工贸易账册管理改革推广，企业可按周期一册多核销、电子化备案，简化出口报关流程，适合来料加工与保税出口的工厂型卖家。', tag: '海关要闻' },
   { flag: '🇨🇳', country: '中国', title: '0110报关新规：境外收货人禁止填写Amazon/FBA仓名', summary: '多地报关行明确0110一般贸易报关单境外收货人不得直接填Amazon或FBA仓名，须提供真实境外购货方、购销合同及结算凭证，合规可走9810海外仓模式预退税。', tag: '海关要闻' },
   { flag: '🇨🇳', country: '中国', title: '全国新增12个跨境电商退换货中心，退货时效缩至3天', summary: '海关推进跨境电商退换货中心建设，覆盖主要出口口岸，退货处理时效从7天缩短至3天，降低卖家退货成本。', tag: '海关要闻' },
   { flag: '🇺🇸', country: '美国', title: '美国第14411号行政令进口新规落地，CBP公布首批措施', summary: '亚马逊提醒卖家确认IOR进口商身份，美国海关已公布首批执行措施，涉及进口申报和清关合规，卖家需提前自查供应链与原产地。', tag: '政策法规' },
@@ -254,22 +258,34 @@ export async function onRequestGet() {
   } catch (e) { pool = []; sources = []; }
 
   const isPolicy = t => ['海关要闻', '政策法规', '合规预警'].includes(t);
-  const TOTAL = 15, POLICY_MIN = 4;
+  const TOTAL = 15, CUSTOMS_MIN = 6, POLICY_MIN = 4;
 
-  // ④ 固定保证：先拆出实时政策类，不足 4 条用精选海关/政策池按日期轮换补齐（预留专属坑位，不被其他新闻挤掉）
-  const livePolicy = pool.filter(n => isPolicy(n.tag));
-  const liveOther = pool.filter(n => !isPolicy(n.tag));
-  const policyBlock = [...livePolicy];
-  const existP = new Set(policyBlock.map(n => n.title.slice(0, 12)));
-  const rotated = CUSTOMS_POLICY.map((x, i) => CUSTOMS_POLICY[(i + doy) % CUSTOMS_POLICY.length]);
-  for (const f of rotated) {
-    if (policyBlock.length >= POLICY_MIN) break;
-    if (existP.has(f.title.slice(0, 12))) continue;
-    policyBlock.push({ ...f, time: '近期' });
-    existP.add(f.title.slice(0, 12));
+  // ④ 海关要闻专属坑位：live 海关要闻 + 人工精选池按日期轮换补足 6 条（每日固定展示 6 条海关要闻）
+  const liveCustoms = pool.filter(n => n.tag === '海关要闻');
+  const customsBlock = [...liveCustoms];
+  const existC = new Set(customsBlock.map(n => n.title.slice(0, 12)));
+  const rotatedC = CUSTOMS_POLICY.map((x, i) => CUSTOMS_POLICY[(i + doy) % CUSTOMS_POLICY.length]).filter(x => x.tag === '海关要闻');
+  for (const f of rotatedC) {
+    if (customsBlock.length >= CUSTOMS_MIN) break;
+    if (existC.has(f.title.slice(0, 12))) continue;
+    customsBlock.push({ ...f, time: '近期' });
+    existC.add(f.title.slice(0, 12));
   }
 
-  // ⑤ 其余坑位用实时行业/平台新闻填充，不足再用行业兜底
+  // ⑤ 其余政策坑位（政策法规/合规预警）：live + 人工池补足 POLICY_MIN 条
+  const livePolicy = pool.filter(n => isPolicy(n.tag) && n.tag !== '海关要闻');
+  const policyRest = [...livePolicy];
+  const existP = new Set([...customsBlock, ...policyRest].map(n => n.title.slice(0, 12)));
+  const rotatedP = CUSTOMS_POLICY.map((x, i) => CUSTOMS_POLICY[(i + doy) % CUSTOMS_POLICY.length]).filter(x => x.tag !== '海关要闻');
+  for (const f of rotatedP) {
+    if (policyRest.length >= POLICY_MIN) break;
+    if (existP.has(f.title.slice(0, 12))) continue;
+    policyRest.push({ ...f, time: '近期' });
+    existP.add(f.title.slice(0, 12));
+  }
+  const policyBlock = [...customsBlock, ...policyRest];
+
+  // ⑥ 其余坑位用实时行业/平台新闻填充，不足再用行业兜底
   const otherSlots = TOTAL - policyBlock.length;
   const otherBlock = liveOther.slice(0, otherSlots);
   if (otherBlock.length < otherSlots) {
