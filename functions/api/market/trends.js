@@ -142,6 +142,15 @@ function parseNavTitles(html, host) {
 }
 
 // 五国人工精选兜底池（FBM 数据多于 FBA，TikTok直邮/海外仓充足），按日期轮换
+// 各国热搜词兜底池（AMZ123 ABA 榜单抓取失败时的本地保底，按日期轮换）
+const KW_FLOOR = {
+  美国: ['needoh', 'squishy', 'halloween decorations', 'iphone 18 pro max case', 'magnesium glycinate', 'air fryer liners', 'owala water bottle', 'paper towels', 'toilet paper', 'kindle'],
+  加拿大: ['kindle', 'lego', 'squishy', 'halloween decor', 'vitamin c', 'needoh', 'air fryer', 'water flosser', 'tire inflator', 'roomba'],
+  日本: ['ちいかわ', 'プロテイン', 'ポケモンカード', '無職転生', 'サプリ', '加湿器', 'ワイヤレスイヤホン', 'スマホケース', 'ドライヤー', 'ゲーミングチェア'],
+  韩国: ['쿠팡 인기상품', 'LG gram', '삼성 갤럭시', '화장품 세트', '치킨 프랜차이즈', '골프 용품', '무선청소기', '에어프라이어'],
+  泰国: ['防水手机袋', 'LED灯带', '便携风扇', '防晒霜', '充电宝', '7-11 零食', '泰式彩妆', '挂脖风扇', '旅行分装瓶', '手机支架'],
+  墨西哥: ['audifonos', 'zapatos', 'maquillaje', 'proteina', 'air fryer', 'lentes de sol', 'cargador', 'juguetes', 'reloj', 'ropa deportiva']
+};
 const FLOOR = {
   美国: [
     { name: '便携挂脖风扇（无叶涡轮款）', category: '生活小家电', heatLevel: '高', platform: '海外仓备仓', seasonTrend: '夏季爆卖', cargoTags: ['普货', '敏感货'], reason: '美国夏季炎热，挂脖风扇是近年超级爆品，无叶涡轮款升级四代，海外仓备旺季货跟得上时效。', viralPoint: '痛点：夏天出门太热、手持风扇占手、普通挂脖风扇夹头发。爆点：无叶不绞发+360度环绕出风+4000mAh续航6-12小时+Type-C快充+轻至200多克+多色可选。' },
@@ -222,12 +231,18 @@ async function handle({ request }) {
   const doy = dayOfYear();
   const sources = [];
   const live = [];
+  const kwLive = [];
   const seen = new Set();
   const pushLive = (title, src) => {
     const k = title.slice(0, 16);
     if (!title || seen.has(k)) return;
     seen.add(k);
     live.push(makeLiveItem(country, flag, title, src));
+  };
+  const pushKw = (w, src) => {
+    if (!w || seen.has(w)) return;
+    seen.add(w);
+    kwLive.push({ id: 'kw-' + Math.abs([...w].reduce((a, c) => a + c.charCodeAt(0), 0)), name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·'+country+'站TOP搜索词榜（来源：'+src+'，每周更新）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true });
   };
 
   // ①+② 并发抓取 Google News（主）与 AMZ123/TT123（补），整体硬截止 4.2s，到点用已拿到的部分，确保冷启动也远快于前端 8s 超时、不会把用户晾在本地数据
@@ -243,32 +258,40 @@ async function handle({ request }) {
       fetchText('https://www.tt123.com/t/', 3800).then(h => parseNavTitles(h, 'tt123')).catch(() => []),
       topUrl ? fetchText(topUrl, 3800).then(h => parseTopWords(h, 10)).catch(() => []) : Promise.resolve([])
     ]);
-    // 热销词最优先（买家真实搜索词，实时性最高）
-    if (top.length) { const before = live.length; top.slice(0, 6).forEach(t => pushLive(t, 'AMZ123热销词')); if (live.length > before) sources.push('AMZ123热销词'); }
+    // 热搜词进独立热搜词榜（买家真实搜索词，实时性最高）
+    if (top.length) { const before = kwLive.length; top.slice(0, 8).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
     if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
     if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
   })().catch(() => {});
   await Promise.race([Promise.allSettled([pGoogle, pTrade]), new Promise(r => setTimeout(r, 4200))]);
 
-  // ③ 精选兜底按日期轮换（换一批时加随机偏移，保证每次刷新内容不同），补足到 limit
+  // ③ 热搜词榜：live 热销词优先，不足用 KW_FLOOR 按日期轮换补齐到 6（每日固定 6 条，换一批随机偏移）
   const jitter = refresh ? Math.floor(Math.random() * 100000) : 0;
+  const kwFloor = KW_FLOOR[country] || [];
+  const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
+    .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
+  const keywords = [];
+  for (const it of kwLive) { if (keywords.length >= 6) break; keywords.push(it); }
+  for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
+  while (keywords.length < 6 && kwRot.length) keywords.push(kwRot[keywords.length % kwRot.length]);
+
+  // ④ 趋势产品：live 趋势资讯（Google/早报/TT123）优先，FLOOR 兜底，补足到 limit
   const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitter)
     .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
-  const items = [];
-  const liveTop = live.filter(it => it.reason.includes('热销词'));
-  const liveRest = live.filter(it => !it.reason.includes('热销词'));
-  for (const it of [...liveTop, ...liveRest]) { if (items.length >= limit) break; items.push(it); }
-  for (const it of floor) { if (items.length >= limit) break; items.push(it); }
-  while (items.length < limit && floor.length) items.push(floor[items.length % floor.length]);
+  const trends = [];
+  for (const it of live) { if (trends.length >= limit) break; trends.push(it); }
+  for (const it of floor) { if (trends.length >= limit) break; trends.push(it); }
+  while (trends.length < limit && floor.length) trends.push(floor[trends.length % floor.length]);
 
   const result = {
     source: sources.length ? 'live:' + sources.join('+') : 'curated-floor',
-    country, flag, count: items.length,
-    liveCount: live.length, items,
+    country, flag, count: keywords.length + trends.length,
+    liveCount: kwLive.length + live.length,
+    keywords, trends,
     updated: new Date().toLocaleString('zh-CN')
   };
   // 有实时数据缓存30分钟；纯兜底只缓存5分钟，便于联网恢复后尽快回到实时
-  mem.set(country, { t: Date.now(), ttl: live.length ? CACHE_TTL : 5 * 60 * 1000, data: result });
+  mem.set(country, { t: Date.now(), ttl: (kwLive.length || live.length) ? CACHE_TTL : 5 * 60 * 1000, data: result });
   return new Response(JSON.stringify(result), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
@@ -279,7 +302,7 @@ export async function onRequestGet(ctx) {
   try {
     return await handle(ctx);
   } catch (e) {
-    return new Response(JSON.stringify({ source: 'error', items: [], count: 0, liveCount: 0, error: String(e && e.message || e), updated: new Date().toLocaleString('zh-CN') }), {
+    return new Response(JSON.stringify({ source: 'error', items: [], keywords: [], trends: [], count: 0, liveCount: 0, error: String(e && e.message || e), updated: new Date().toLocaleString('zh-CN') }), {
       status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
