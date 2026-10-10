@@ -286,8 +286,9 @@ async function queryBrandLibraries(kws) {
 function pickRisk(patents) {
   const strong = patents.filter(p => p.titleHits >= 2);
   const some = patents.filter(p => p.titleHits >= 1);
-  if (strong.length >= 2 || patents.length >= 3) return { level: 'high', label: '高风险', reason: `检索到 ${patents.length} 件相关专利，其中 ${strong.length} 件高度相关，建议改款或进一步核实后再上架` };
-  if (strong.length === 1 || some.length >= 1) return { level: 'medium', label: '中风险', reason: `检索到 ${patents.length} 件相关专利，建议人工核实权利要求与您的产品差异` };
+  const listNum = (arr) => arr.slice(0, 2).map(p => p.patentNumber + (p.title ? '《' + p.title.slice(0, 24) + '》' : '')).join('、');
+  if (strong.length >= 2 || patents.length >= 3) return { level: 'high', label: '高风险', reason: `检索到 ${patents.length} 件相关专利（${listNum(strong.length ? strong : patents)}），其中 ${strong.length} 件高度相关，建议改款或进一步核实后再上架` };
+  if (strong.length === 1 || some.length >= 1) return { level: 'medium', label: '中风险', reason: `检索到 ${patents.length} 件相关专利（${listNum(some)}），建议人工核实权利要求与您的产品差异` };
   return { level: 'low', label: '低风险', reason: '未检索到高度相关的已授权专利，仍建议人工复核' };
 }
 
