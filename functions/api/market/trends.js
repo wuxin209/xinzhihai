@@ -288,6 +288,7 @@ async function handle({ request }) {
     country, flag, count: keywords.length + trends.length,
     liveCount: kwLive.length + live.length,
     keywords, trends,
+    items: [...keywords, ...trends],
     updated: new Date().toLocaleString('zh-CN')
   };
   // 有实时数据缓存30分钟；纯兜底只缓存5分钟，便于联网恢复后尽快回到实时
