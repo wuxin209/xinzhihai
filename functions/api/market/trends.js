@@ -17,6 +17,24 @@ async function fetchText(url, ms = 8000) {
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   return await resp.text();
 }
+// AMZ123 各国站 TOP 搜索词榜（亚马逊后台 ABA 品牌分析数据，一周更新，实时性最高）
+const AMZ123_TOP = {
+  '美国': 'https://www.amz123.com/usatopkeywords/1',
+  '加拿大': 'https://www.amz123.com/catopkeywords/1',
+  '墨西哥': 'https://www.amz123.com/mxtopkeywords/1',
+  '日本': 'https://www.amz123.com/jptopkeywords/1'
+};
+function parseTopWords(html, max = 10) {
+  const out = [];
+  // 词条 <a> 元素同时含 title 与 table-body-item-words-word（属性顺序不定，整体匹配后取 title）
+  const re = /<a[^>]*title="([^"]{2,60})"[^>]*table-body-item-words-word[^>]*>|<a[^>]*table-body-item-words-word[^>]*title="([^"]{2,60})"[^>]*>/g;
+  let m;
+  while ((m = re.exec(html)) && out.length < max) {
+    const w = (m[1] || m[2] || '').trim();
+    if (w && !/[<>]/.test(w)) out.push(w);
+  }
+  return out;
+}
 function decodeEntities(s) {
   if (!s) return '';
   return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
