@@ -219,10 +219,14 @@ async function handle({ request }) {
     if (g.length) { sources.push('GoogleNews'); g.slice(0, 8).forEach(t => pushLive(t, 'Google资讯')); }
   }).catch(() => {});
   const pTrade = (async () => {
-    const [zb, tt] = await Promise.all([
+    const topUrl = AMZ123_TOP[country];
+    const [zb, tt, top] = await Promise.all([
       fetchText('https://www.amz123.com/zb', 3800).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
-      fetchText('https://www.tt123.com/t/', 3800).then(h => parseNavTitles(h, 'tt123')).catch(() => [])
+      fetchText('https://www.tt123.com/t/', 3800).then(h => parseNavTitles(h, 'tt123')).catch(() => []),
+      topUrl ? fetchText(topUrl, 3800).then(h => parseTopWords(h, 10)).catch(() => []) : Promise.resolve([])
     ]);
+    // 热销词最优先（买家真实搜索词，实时性最高）
+    if (top.length) { const before = live.length; top.slice(0, 6).forEach(t => pushLive(t, 'AMZ123热销词')); if (live.length > before) sources.push('AMZ123热销词'); }
     if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
     if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
   })().catch(() => {});
@@ -233,7 +237,9 @@ async function handle({ request }) {
   const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitter)
     .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
   const items = [];
-  for (const it of live) { if (items.length >= limit) break; items.push(it); }
+  const liveTop = live.filter(it => it.reason.includes('热销词'));
+  const liveRest = live.filter(it => !it.reason.includes('热销词'));
+  for (const it of [...liveTop, ...liveRest]) { if (items.length >= limit) break; items.push(it); }
   for (const it of floor) { if (items.length >= limit) break; items.push(it); }
   while (items.length < limit && floor.length) items.push(floor[items.length % floor.length]);
 
