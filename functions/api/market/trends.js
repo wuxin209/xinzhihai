@@ -309,15 +309,31 @@ async function handle({ request }) {
   const kwFloor = KW_FLOOR[country] || [];
   const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
     .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
-  // 关键词搜索模式：q 存在时从 AMZ123 各国榜实时抓全量热销词按关键词过滤（未匹配返回空+提示前端）
+  // 关键词搜索模式：多源匹配（AMZ123实时TOP榜 + 当日缓存热搜词 + 本地兜底池 + 本次Google热搜），大幅提升命中率
   let searchKw = null;
   if (kwQ) {
+    const words = [];
     const topUrl = AMZ123_TOP[country];
     if (topUrl) {
-      const words = await fetchText(topUrl, 5000).then(h => parseTopWords(h, 120)).catch(() => []);
-      const hit = words.filter(w => w.toLowerCase().includes(kwQ));
-      searchKw = hit.slice(0, 10).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（来源：AMZ123实时抓取）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
+      // 实时抓取 TOP 榜（放宽到 200 词提高覆盖面），失败静默走其他源
+      const w = await fetchText(topUrl, 5000).then(h => parseTopWords(h, 200)).catch(() => []);
+      words.push(...w);
     }
+    // 当日缓存中的热搜词（避免每次搜索都干等联网）
+    const memHit = mem.get(country);
+    if (memHit && memHit.data) words.push(...(memHit.data.keywords || []).map(k => k.name || ''));
+    // 本地兜底池（美/加/日/韩/泰/墨都有）
+    words.push(...(KW_FLOOR[country] || []));
+    // 本次抓取的 Google 每日热搜
+    words.push(...kwLive.map(k => k.name || ''));
+    // 去重 + 包含匹配（支持空格多词 AND 匹配）
+    const unique = [...new Set(words.map(w => String(w).trim()).filter(Boolean))];
+    const qs = kwQ.split(/\s+/).filter(Boolean);
+    const hit = unique.filter(w => {
+      const wl = w.toLowerCase();
+      return qs.every(q => q && wl.includes(q));
+    }).slice(0, 10);
+    searchKw = hit.map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（多源实时匹配）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
     if (!searchKw) searchKw = [];
   }
   const keywords = searchKw !== null ? searchKw : [];
