@@ -270,40 +270,62 @@ async function handle({ request }) {
 
   const doy = dayOfYear();
 
-  // ===== 关键词搜索快速分支：只抓 AMZ123 实时榜 + 本地/缓存池，不跑趋势重活，3-4s 返回 =====
+  // ===== 关键词搜索：联网热度判断（Google News 近期资讯 + AMZ123 TOP 1-160 命中）=====
   if (kwQ) {
-    const words = [];
-    const memHit = mem.get(country);
-    if (memHit && memHit.data) words.push(...(memHit.data.keywords || []).map(k => k.name || ''));
-    words.push(...(KW_FLOOR[country] || []));
+    const qs = kwQ.split(/\s+/).filter(Boolean);
+    const dec = (s) => (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
+    // 源1: Google News RSS 搜索该关键词近期资讯（当:14d，判断是否受欢迎）
+    const newsTitles = [];
+    const gUrl = 'https://news.google.com/rss/search?q=' + encodeURIComponent(kwQ + ' when:14d') + '&hl=en-US&gl=US&ceid=US:en';
+    await Promise.race([
+      fetchText(gUrl, 6000).then(html => {
+        for (const m of [...html.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 12)) {
+          const t = dec(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || ''));
+          if (t && !newsTitles.includes(t)) newsTitles.push(t);
+        }
+      }).catch(() => {}),
+      new Promise(r => setTimeout(r, 6100))
+    ]);
+    // 源2: AMZ123 TOP 1-160 词命中
+    const topWords = [];
     const topUrl = AMZ123_TOP[country];
     if (topUrl) {
       await Promise.race([
-        fetchText(topUrl, 3500).then(h => { words.push(...parseTopWords(h, 200)); }).catch(() => {}),
-        new Promise(r => setTimeout(r, 3600))
+        fetchText(topUrl, 5000).then(h => { topWords.push(...parseTopWords(h, 160)); }).catch(() => {}),
+        new Promise(r => setTimeout(r, 5100))
       ]);
     }
-    const unique = [...new Set(words.map(w => String(w).trim()).filter(Boolean))];
-    const qs = kwQ.split(/\s+/).filter(Boolean);
-    let hit = unique.filter(w => { const wl = w.toLowerCase(); return qs.every(q => q && wl.includes(q)); });
-    if (!hit.length && qs.length > 1) hit = unique.filter(w => { const wl = w.toLowerCase(); return qs.some(q => q && wl.includes(q)); });
-    const searchKw = hit.slice(0, 10).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（多源实时匹配）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
-    const jitterS = refresh ? Math.floor(Math.random() * 100000) : 0;
-    const floorS = rotateFloor(FLOOR[country], dayOfYear(), FLOOR[country].length, jitterS)
-      .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
-    const trends = floorS.slice(0, limit);
+    const kwLow = kwQ.toLowerCase();
+    const hitWords = [...new Set(topWords.map(w => String(w).trim()).filter(w => {
+      const wl = w.toLowerCase();
+      return wl.includes(kwLow) || qs.some(q => q && wl.includes(q.toLowerCase()));
+    }))];
+    const kwHitNews = newsTitles.filter(t => t.toLowerCase().includes(kwLow));
+    const hitCount = hitWords.length + (kwHitNews.length ? 1 : 0);
+    const verdict = hitCount >= 3 ? '热门' : hitCount >= 1 ? '一般' : '未收录';
+    const reasonBase = verdict === '未收录'
+      ? '近期未收录到热度数据，建议自行查阅亚马逊ABA后台或Google Trends'
+      : '联网热度判断：' + verdict + '（关键词「' + kwQ + '」' + (kwHitNews.length ? '近14天Google资讯' + kwHitNews.length + '条' : '') + (hitWords.length ? (kwHitNews.length ? '、' : '') + '命中AMZ123 TOP榜' + hitWords.length + '个词' : '') + '）';
+    const searchKw = hitWords.slice(0, 6).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: verdict === '热门' ? '高' : '中', reason: reasonBase, viralPoint: '相关热搜词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
+    // 资讯标题高频词补充（出现频次最高的词，作为"前三页最多出现的"判断）
+    const STOP = new Set(['the','and','for','are','with','that','this','from','have','has','your','youre','will','was','were','not','but','all','can','its','new','now','per','amazon','google','news']);
+    const freq = {};
+    for (const t of newsTitles) {
+      for (const w of t.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)) {
+        if (w.length > 3 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1;
+      }
+    }
+    const topFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([w], i) => ({ id: 'nw-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '关键词「' + kwQ + '」近期Google资讯高频词（近14天' + kwHitNews.length + '条资讯统计）', viralPoint: '资讯高频词：' + w, platform: 'Google', seasonTrend: '近14天', cargoTags: '热搜词', live: true, search: true }));
+    const merged = [...searchKw, ...topFreq].slice(0, 6);
     const result = {
-      search: { q: kwQ, hit: searchKw.length },
-      source: searchKw.length ? 'live:AMZ123实时+本地热搜词' : 'curated-floor',
-      country, flag, count: searchKw.length + trends.length,
-      liveCount: searchKw.length,
-      keywords: searchKw, trends,
-      items: [...searchKw, ...trends],
+      search: { q: kwQ, hit: merged.length, verdict, newsCount: kwHitNews.length },
+      source: newsTitles.length ? 'live:GoogleNews+AMZ123' : (hitWords.length ? 'live:AMZ123' : '未收录'),
+      country, flag, count: merged.length,
+      liveCount: merged.length,
+      keywords: merged, trends: [],
+      items: merged,
       updated: new Date().toLocaleString('zh-CN')
     };
-    if (category === 'keywords') { result.items = result.keywords; result.count = result.keywords.length; }
-    else if (category === 'products') { result.items = result.trends; result.count = result.trends.length; }
-    // 搜索结果不写 mem（避免污染默认缓存；搜索本身需实时）
     return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   }
   const sources = [];
@@ -334,12 +356,12 @@ async function handle({ request }) {
     const [zb, tt, top, gt, pt] = await Promise.all([
       fetchText('https://www.amz123.com/zb', 3800).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
       fetchText('https://www.tt123.com/t/', 3800).then(h => parseNavTitles(h, 'tt123')).catch(() => []),
-      topUrl ? fetchText(topUrl, 3800).then(h => parseTopWords(h, 10)).catch(() => []) : Promise.resolve([]),
+      topUrl ? fetchText(topUrl, 3800).then(h => parseTopWords(h, 160)).catch(() => []) : Promise.resolve([]),
       fetchGoogleTrends(cfg.gl).catch(() => []),
       fetchPinterestTrends(ptCC).catch(() => [])
     ]);
-    // 热搜词进独立热搜词榜：AMZ123 买家真实搜索词第一，Google 每日热搜第二
-    if (top.length) { const before = kwLive.length; top.slice(0, 8).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
+    // 热搜词进独立热搜词榜：AMZ123 买家真实搜索词第一，Google 每日热搜第二（TOP 1-160 词全量入池，展示前 6 条轮换）
+    if (top.length) { const before = kwLive.length; top.slice(0, 160).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
     if (gt.length) { const before = kwLive.length; gt.slice(0, 6).forEach(t => pushKw(t, 'Google每日热搜')); if (kwLive.length > before) sources.push('Google每日热搜'); }
     if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
     if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
