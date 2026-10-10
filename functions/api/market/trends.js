@@ -248,7 +248,12 @@ function rotateFloor(list, doy, n, jitter) {
 async function handle({ request }) {
   const url = new URL(request.url);
   let country = url.searchParams.get('country') || '美国';
+  // 兼容国家代码（us/ca/jp/mx/kr/th）与英文全名，统一映射为中文名
+  const CC_MAP = { us: '美国', usa: '美国', ca: '加拿大', canada: '加拿大', jp: '日本', japan: '日本', mx: '墨西哥', mexico: '墨西哥', kr: '韩国', korea: '韩国', th: '泰国', thailand: '泰国' };
+  const countryRaw = String(country).trim().toLowerCase();
+  if (CC_MAP[countryRaw]) country = CC_MAP[countryRaw];
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '6', 10) || 6, 12);
+  const category = url.searchParams.get('category') || ''; // keywords=热搜词榜 / products=趋势产品
   const refresh = url.searchParams.get('refresh') === '1';
   const kwQ = (url.searchParams.get('q') || '').trim().toLowerCase();
   if (!FLOOR[country]) country = '美国';
@@ -296,6 +301,8 @@ async function handle({ request }) {
       items: [...searchKw, ...trends],
       updated: new Date().toLocaleString('zh-CN')
     };
+    if (category === 'keywords') { result.items = result.keywords; result.count = result.keywords.length; }
+    else if (category === 'products') { result.items = result.trends; result.count = result.trends.length; }
     // 搜索结果不写 mem（避免污染默认缓存；搜索本身需实时）
     return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   }
@@ -367,6 +374,16 @@ async function handle({ request }) {
     items: [...keywords, ...trends],
     updated: new Date().toLocaleString('zh-CN')
   };
+  // category 区分：keywords 只返回热搜词榜，products 只返回趋势产品
+  if (category === 'keywords') {
+    result.items = result.keywords;
+    result.count = result.keywords.length;
+    result.liveCount = kwLive.length;
+  } else if (category === 'products') {
+    result.items = result.trends;
+    result.count = result.trends.length;
+    result.liveCount = live.length;
+  }
   // 有实时数据缓存30分钟；纯兜底只缓存5分钟，便于联网恢复后尽快回到实时
   mem.set(country, { t: Date.now(), ttl: (kwLive.length || live.length) ? CACHE_TTL : 5 * 60 * 1000, data: result });
   return new Response(JSON.stringify(result), {
