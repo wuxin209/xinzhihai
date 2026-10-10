@@ -284,7 +284,7 @@ async function handle({ request }) {
     if (!hit.length && qs.length > 1) hit = unique.filter(w => { const wl = w.toLowerCase(); return qs.some(q => q && wl.includes(q)); });
     const searchKw = hit.slice(0, 10).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜·命中关键词「' + kwQ + '」（多源实时匹配）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
     const jitterS = refresh ? Math.floor(Math.random() * 100000) : 0;
-    const floorS = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitterS)
+    const floorS = rotateFloor(FLOOR[country], dayOfYear(), FLOOR[country].length, jitterS)
       .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
     const trends = floorS.slice(0, limit);
     const result = {
