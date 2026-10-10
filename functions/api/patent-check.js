@@ -293,16 +293,8 @@ function pickRisk(patents) {
 
 // A 方案：人工检索链接生成（100% 稳定，零联网依赖）
 function buildSearchLinks(kws) {
-  const q = kws.slice(0, 2).join(' ');
-  const qq = encodeURIComponent('"' + q + '"');
-  const qz = encodeURIComponent(q + ' patent OR trademark OR infringement');
-  return [
-    { label: 'Google Patents · 美国专利', url: `https://patents.google.com/?q=${qq}&country=US&language=ENGLISH` },
-    { label: 'Google Patents · 全球专利', url: `https://patents.google.com/?q=${qq}` },
-    { label: 'USPTO · 美国商标查询', url: 'https://tmsearch.uspto.gov/' },
-    { label: 'Google · 专利/侵权综合搜索', url: `https://www.google.com/search?q=${qz}` },
-    { label: '亚马逊 · 品牌注册与侵权举报指引', url: 'https://www.amazon.com/gp/help/customer/display.html?nodeId=202075700' }
-  ];
+  // 精简输出：不再展示大量网页跳转链接，统一提示自行网络搜索或运营表排查
+  return [];
 }
 
 // ============ 通用排查（GET/POST 共用） ============
@@ -320,7 +312,7 @@ async function runCheck(keywords) {
   } else if (patents.length) {
     risk = pickRisk(patents);
   } else {
-    risk = { level: 'manual', label: '建议人工核实', reason: '已核查最新美国 TRO 案件（123tro + SellerDefense，未命中）与历史代理品牌库（未命中）与专利库（自动检索暂不可用）。为你生成一键检索链接，点开核实该产品是否有已授权专利/商标（专利号等以官方页面显示为准）' };
+    risk = { level: 'manual', label: '未记录到风险', reason: '已核查最新美国 TRO 案件（123tro + SellerDefense）、历史代理品牌库与专利库，均未记录到相关侵权风险。建议自行网络搜索该产品关键词，或对照团队运营表排查复核后再上架' };
   }
   return {
     risk: risk.level,
@@ -338,7 +330,7 @@ async function runCheck(keywords) {
       brandLib.hits.length ? `历史代理品牌库命中 ${brandLib.hits.length} 个品牌` : '历史代理品牌库（内置+文字版）未命中',
       `侵权/TRO 资讯 ${news.length} 条`,
       patents.length ? `自动检索专利 ${patents.length} 件` : '自动专利检索暂不可用',
-      '已生成人工核实链接'
+      '建议自行网络搜索或运营表排查复核'
     ].join('；'),
     disclaimer: DISCLAIMER,
     updated: new Date().toLocaleString('zh-CN')
