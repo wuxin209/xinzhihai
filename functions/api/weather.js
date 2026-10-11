@@ -123,7 +123,7 @@ async function fetchDisasters(debug) {
         ['australia', '澳大利亚'], ['bangkok', '曼谷'], ['thailand', '泰国'],
         ['malaysia', '马来西亚'], ['south korea', 'korea', '韩国'], ['mexico', '墨西哥']
       ];
-      for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 30)) {
+      for (const m of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 240)) {
         const title = decodeEntities(((m[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim()).toLowerCase();
         if (title.length < 8) continue;
         let idx = -1;
@@ -139,10 +139,12 @@ async function fetchDisasters(debug) {
         const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
         let time = '';
         if (pd) { const t = new Date(pd); if (!isNaN(t)) time = t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
-        const dispRegion = item.region === '泰国' ? '曼谷/泰国' : item.region;
+        // 泰国（含曼谷）灾害提权到 priority 5（仓库在曼谷，必须置顶显示）
+        const isTh = idx === 4 || idx === 5;
+        const dispRegion = isTh ? '曼谷/泰国' : item.region;
         const rawTitle = title[0].toUpperCase() + title.slice(1);
-        const dispTitle = item.region === '泰国' ? '泰国（曼谷）' + hit[1] + '：' + rawTitle : rawTitle;
-        results.push({ flag: item.flag, country: item.country, region: dispRegion, type: hit[1], title: dispTitle, time, url: link, priority: item.priority });
+        const dispTitle = isTh ? '泰国（曼谷）' + hit[1] + '：' + rawTitle : rawTitle;
+        results.push({ flag: item.flag, country: item.country, region: dispRegion, type: hit[1], title: dispTitle, time, url: link, priority: isTh ? 5 : item.priority });
         gdacsCount[idx]++;
       }
       if (debug) dlog('GDACS 命中 ' + gdacsCount[0]+gdacsCount[1]+gdacsCount[2]+gdacsCount[3]+gdacsCount[4]+gdacsCount[5] + '条');
