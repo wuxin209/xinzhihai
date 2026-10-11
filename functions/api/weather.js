@@ -109,11 +109,11 @@ async function fetchDisasters(debug) {
     }
     return [];
   };
-  // 源2: GDACS 全球灾害 RSS（按国家过滤兜底，与 Google 并行）
+  // 源2: GDACS 全球灾害 RSS（按国家过滤兜底；685KB大文件15s独立超时，不被Google 8s硬截止拖累）
   const gdacsP = (async () => {
   try {
     const url = 'https://www.gdacs.org/xml/rss.xml';
-    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
+    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(15000) });
     if (resp.ok) {
       if (debug) dlog('GDACS HTTP 200');
       const xml = await resp.text();
@@ -149,13 +149,14 @@ async function fetchDisasters(debug) {
     } else { if (debug) dlog('GDACS HTTP ' + resp.status); }
   } catch (e) { if (debug) dlog('GDACS 抓取失败: ' + (e.message || e)); }
   })();
-  // 整体硬截止 8s：9 组并行抓取，到点用已拿到部分，避免拖垮主天气接口
+  // Google 组硬截止 8s；GDACS 单独 await（15s 超时），两源并行互不拖累
   const googleRound = await Promise.race([
-    Promise.all([Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))), gdacsP]),
+    Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))),
     new Promise((r) => setTimeout(r, 8000))
   ]);
-  if (debug) dlog('googleRound完成, results=' + results.length + '条');
-  googleRound.forEach((arr) => results.push(...arr));
+  googleRound.forEach((arr) => { if (Array.isArray(arr)) results.push(...arr); });
+  await gdacsP;
+  if (debug) dlog('全部抓取完成, results=' + results.length + '条');
   results.sort((a, b) => a.priority - b.priority);
   const seen = new Set();
   const out = results.filter((r) => { const k = r.region + r.title; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
