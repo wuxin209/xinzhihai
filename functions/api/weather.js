@@ -154,7 +154,7 @@ async function fetchDisasters(debug) {
     Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))),
     new Promise((r) => setTimeout(r, 8000))
   ]);
-  googleRound.forEach((arr) => { if (Array.isArray(arr)) results.push(...arr); });
+  (Array.isArray(googleRound) ? googleRound : []).forEach((arr) => { if (Array.isArray(arr)) results.push(...arr); });
   await gdacsP;
   if (debug) dlog('全部抓取完成, results=' + results.length + '条');
   results.sort((a, b) => a.priority - b.priority);
@@ -301,7 +301,10 @@ export async function onRequestGet(context) {
       const debug = u.searchParams.get('debug') === '1';
       disasters = await fetchDisasters(debug);
       dlog = debug ? globalThis.__dlog || [] : null;
-    } catch (e) {}
+    } catch (e) {
+      if (globalThis.__dlog) globalThis.__dlog.push('fetchDisasters异常: ' + (e && e.message || e));
+      dlog = globalThis.__dlog || null;
+    }
 
     // 目标国当前天气（美/加/泰/日/韩/澳/墨，open-meteo 并行，失败不影响主数据）
     let countryWeather = [];
