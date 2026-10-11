@@ -189,7 +189,7 @@ function roundRobinByPlatform(buckets, total) {
 export async function onRequestGet() {
   if (cacheData && Date.now() - cacheTime < CACHE_TTL) {
     return new Response(JSON.stringify({ ...cacheData, cached: true }), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
     });
   }
 
@@ -270,6 +270,6 @@ export async function onRequestGet() {
   cacheData = result; cacheTime = Date.now();
   try { caches.default.put('xzh-morning-v1', new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
   return new Response(JSON.stringify(result), {
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
   });
 }

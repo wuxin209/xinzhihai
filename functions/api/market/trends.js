@@ -206,12 +206,12 @@ async function handle({ request, waitUntil }) {
       const chit = await caches.default.match(ck);
       if (chit && chit.ok) {
         const data = await chit.json();
-        return new Response(JSON.stringify({ ...data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        return new Response(JSON.stringify({ ...data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' } });
       }
     } catch (e) {}
     const hit = mem.get(ck);
     if (hit && Date.now() - hit.t < hit.ttl) {
-      return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' } });
     }
   }
 
@@ -250,7 +250,7 @@ async function handle({ request, waitUntil }) {
       keywords: merged, trends: [], items: merged,
       updated: new Date().toLocaleString('zh-CN')
     };
-    return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' } });
   }
 
   // ===== 默认模式：本地池兜底 + 后台抓取实时源写缓存（主响应永不挂死） =====
@@ -322,12 +322,12 @@ async function handle({ request, waitUntil }) {
     const r = build(kwLive, live, sources);
     store(r, kwLive.length || live.length);
     return new Response(JSON.stringify(r), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
     });
   }
   // 2s 内抓取未完成：返回本地池（pTrade 的 fetch 有 2s AbortController 兜底，不会拖死）
   return new Response(JSON.stringify(localResult), {
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
   });
 }
 
@@ -337,7 +337,7 @@ export async function onRequestGet(ctx) {
     return await handle(ctx);
   } catch (e) {
     return new Response(JSON.stringify({ source: 'error', items: [], keywords: [], trends: [], count: 0, liveCount: 0, error: String(e && e.message || e), updated: new Date().toLocaleString('zh-CN') }), {
-      status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
     });
   }
 }

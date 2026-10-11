@@ -195,7 +195,7 @@ function dedupe(items) {
   });
 }
 
-const NEWS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+const NEWS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' };
 const EDGE_CACHE_KEY = 'https://xinzhihai.internal/cache/api-news';
 
 // 所有源并行抓取（每个源各自超时封顶），到点用已抓到的部分，绝不串行累加耗时

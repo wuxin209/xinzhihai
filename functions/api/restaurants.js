@@ -73,7 +73,7 @@ export async function onRequestGet(context) {
       if (chit && chit.ok) {
         const cached = await chit.json();
         if (cached && cached.restaurants && cached.restaurants.length > 0) {
-          return new Response(JSON.stringify({ ...cached, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+          return new Response(JSON.stringify({ ...cached, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=3600' } });
         }
       }
     } catch (e) {}
@@ -96,7 +96,7 @@ export async function onRequestGet(context) {
       if (!data || data.status !== '1') {
         // 高德不可用 → 本地真实馆子池兜底
         const pool = LOCAL_POOL[city];
-        if (pool && pool.length) return new Response(JSON.stringify({ source: 'local-pool', city, count: pool.length, keyword, restaurants: pool }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        if (pool && pool.length) return new Response(JSON.stringify({ source: 'local-pool', city, count: pool.length, keyword, restaurants: pool }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=3600' } });
         return new Response(JSON.stringify({ source: 'fallback', error: (data && data.info) || '高德接口超时', restaurants: [] }), { headers: { 'Content-Type': 'application/json' } });
       }
       const restaurants = (data.pois || []).map(poi => ({
@@ -111,7 +111,7 @@ export async function onRequestGet(context) {
       const body = { source: 'amap-city', city, count: restaurants.length, keyword, restaurants };
       try { await caches.default.put(ck, new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
       return new Response(JSON.stringify(body), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=3600' }
       });
     }
 
@@ -145,7 +145,7 @@ export async function onRequestGet(context) {
     try { await caches.default.put(ck, new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
 
     return new Response(JSON.stringify(body), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=3600' }
     });
   } catch (e) {
     return new Response(JSON.stringify({ source: 'fallback', error: e.message, restaurants: [] }), {
