@@ -112,7 +112,7 @@ function parseGoogleRss(xml) {
 // Google Trends 每日热搜（按国家，真实全球热搜，来源 trends.google.com）
 async function fetchGoogleTrends(gl) {
   const resp = await fetch('https://trends.google.com/trends/api/dailytrends?hl=zh-CN&geo=' + gl + '&ns=15', {
-    headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' }, signal: timeoutSignal(5000)
+    headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' }, signal: timeoutSignal(3000)
   });
   if (!resp.ok) throw new Error('GT HTTP ' + resp.status);
   let raw = await resp.text();
@@ -124,7 +124,7 @@ async function fetchGoogleTrends(gl) {
 // Pinterest 趋势主题（参考源，失败静默）
 async function fetchPinterestTrends(cc) {
   const resp = await fetch('https://trends.pinterest.com/api/topics/?countryCode=' + cc, {
-    headers: { 'User-Agent': UA, 'Accept-Language': 'en;q=0.9' }, signal: timeoutSignal(5000)
+    headers: { 'User-Agent': UA, 'Accept-Language': 'en;q=0.9' }, signal: timeoutSignal(3000)
   });
   if (!resp.ok) throw new Error('PT HTTP ' + resp.status);
   const raw = await resp.text();
@@ -140,7 +140,7 @@ async function googleFor(cfg) {
   await Promise.all(cfg.q.map(async (q) => {
     try {
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + win)}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
-      const xml = await fetchText(url, 3800);
+      const xml = await fetchText(url, 2500);
       for (const t of parseGoogleRss(xml).slice(0, 6)) {
         const k = t.slice(0, 18);
         if (seen.has(k)) continue;
@@ -266,6 +266,15 @@ async function handle({ request }) {
     if (hit && Date.now() - hit.t < hit.ttl) {
       return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
+    // 跨实例缓存（Cloudflare Cache API，冷启动也命中）
+    try {
+      const ck = 'xzh-trends-' + country + (category ? '-' + category : '');
+      const chit = await caches.default.match(ck);
+      if (chit && chit.ok) {
+        const data = await chit.json();
+        return new Response(JSON.stringify({ ...data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
+    } catch (e) {}
   }
 
   const doy = dayOfYear();
@@ -352,9 +361,9 @@ async function handle({ request }) {
     const topUrl = AMZ123_TOP[country];
     const ptCC = { 美国: 'US', 加拿大: 'CA', 日本: 'JP', 韩国: 'KR', 泰国: 'TH', 墨西哥: 'MX' }[country] || 'US';
     const [zb, tt, top, gt, pt] = await Promise.all([
-      fetchText('https://www.amz123.com/zb', 3800).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
-      fetchText('https://www.tt123.com/t/', 3800).then(h => parseNavTitles(h, 'tt123')).catch(() => []),
-      topUrl ? fetchText(topUrl, 3800).then(h => parseTopWords(h, 160)).catch(() => []) : Promise.resolve([]),
+      fetchText('https://www.amz123.com/zb', 2800).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
+      fetchText('https://www.tt123.com/t/', 2800).then(h => parseNavTitles(h, 'tt123')).catch(() => []),
+      topUrl ? fetchText(topUrl, 2800).then(h => parseTopWords(h, 160)).catch(() => []) : Promise.resolve([]),
       fetchGoogleTrends(cfg.gl).catch(() => []),
       fetchPinterestTrends(ptCC).catch(() => [])
     ]);
@@ -365,7 +374,7 @@ async function handle({ request }) {
     if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
     if (pt.length) { const before = live.length; pt.slice(0, 4).forEach(t => pushLive(t, 'Pinterest趋势')); if (live.length > before) sources.push('Pinterest'); }
   })().catch(() => {});
-  await Promise.race([Promise.allSettled([pGoogle, pTrade]), new Promise(r => setTimeout(r, 4200))]);
+  await Promise.race([Promise.allSettled([pGoogle, pTrade]), new Promise(r => setTimeout(r, 3000))]);
 
   // ③ 热搜词榜：live 热销词优先，不足用 KW_FLOOR 按日期轮换补齐到 6（每日固定 6 条，换一批随机偏移）
   const jitter = refresh ? Math.floor(Math.random() * 100000) : 0;
@@ -406,6 +415,12 @@ async function handle({ request }) {
   }
   // 有实时数据缓存30分钟；纯兜底只缓存5分钟，便于联网恢复后尽快回到实时
   mem.set(country, { t: Date.now(), ttl: (kwLive.length || live.length) ? CACHE_TTL : 5 * 60 * 1000, data: result });
+  try {
+    const ck = 'xzh-trends-' + country + (category ? '-' + category : '');
+    await caches.default.put(ck, new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=' + ((kwLive.length || live.length) ? 1800 : 300) }
+    }));
+  } catch (e) {}
   return new Response(JSON.stringify(result), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
