@@ -102,12 +102,6 @@ async function fetchDisasters() {
     }
     return [];
   };
-  // 整体硬截止 6.5s：9 组并行抓取，到点用已拿到部分，避免拖垮主天气接口
-  const googleRound = await Promise.race([
-    Promise.all([Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))), gdacsP]),
-    new Promise((r) => setTimeout(r, 8000))
-  ]);
-  googleRound.forEach((arr) => results.push(...arr));
   // 源2: GDACS 全球灾害 RSS（按国家过滤兜底，与 Google 并行）
   const gdacsP = (async () => {
   try {
@@ -146,6 +140,12 @@ async function fetchDisasters() {
     }
   } catch (e) {}
   })();
+  // 整体硬截止 8s：9 组并行抓取，到点用已拿到部分，避免拖垮主天气接口
+  const googleRound = await Promise.race([
+    Promise.all([Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))), gdacsP]),
+    new Promise((r) => setTimeout(r, 8000))
+  ]);
+  googleRound.forEach((arr) => results.push(...arr));
   results.sort((a, b) => a.priority - b.priority);
   const seen = new Set();
   const out = results.filter((r) => { const k = r.region + r.title; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
@@ -224,7 +224,8 @@ async function fetchCountryWeather() {
     } catch (e) { return null; }
   });
   // 整体硬截止 4.5s：7 国并行，到点用已拿到部分
-  const list = (await Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, 4500))])).filter(Boolean);
+  const raced = await Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, 4500))]);
+  const list = (Array.isArray(raced) ? raced : []).filter(Boolean);
   return list;
 }
 
