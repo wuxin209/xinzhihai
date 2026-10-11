@@ -225,8 +225,8 @@ async function handle({ request, waitUntil }) {
     const topUrl = AMZ123_TOP[country];
     if (topUrl) {
       await Promise.race([
-        fetchText(topUrl, 2500).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {}),
-        new Promise(r => setTimeout(r, 3000))
+        fetchText(topUrl, 1800).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {}),
+        new Promise(r => setTimeout(r, 2500))
       ]);
     }
     const kwLow = kwQ.toLowerCase();
