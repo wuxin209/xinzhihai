@@ -55,7 +55,15 @@ function pushHit(results, item, title, url, pd) {
   results.push({ flag: item.flag, country: item.country, region: item.region, type: hit[1], title, time, url: url || '', priority: item.priority });
   return true;
 }
-const DISASTERS_CACHE_KEY = 'xzh-disasters-v1';
+const DISASTERS_CACHE_KEY = 'xzh-disasters-v2-fresh';
+// 灾害新鲜度上限：超过该天数的预警视为已过期（已解除/已削弱）不再展示
+const DISASTER_MAX_DAYS = 14;
+function isFresh(pd) {
+  if (!pd) return false;
+  const t = new Date(pd);
+  if (isNaN(t)) return false;
+  return (Date.now() - t.getTime()) < DISASTER_MAX_DAYS * 24 * 3600 * 1000;
+}
 function dlog(msg) {
   try {
     if (!globalThis.__dlog) globalThis.__dlog = [];
@@ -84,6 +92,7 @@ async function fetchDisasters(debug) {
       const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
       const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
       if (title.length < 6) continue;
+      if (!isFresh(pd)) continue; // 过期灾害不显示
       const hit = DISASTER_WORDS.find(([re]) => re.test(title));
       if (!hit) continue;
       let time = '';
@@ -137,6 +146,7 @@ async function fetchDisasters(debug) {
         if (!hit) continue;
         const link = ((m[1].match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '').trim();
         const pd = ((m[1].match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '').trim();
+        if (!isFresh(pd)) continue; // 过期灾害（如已过旱季的干旱预警）不显示
         let time = '';
         if (pd) { const t = new Date(pd); if (!isNaN(t)) time = t.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
         // 泰国（含曼谷）灾害提权到 priority 5（仓库在曼谷，必须置顶显示）
