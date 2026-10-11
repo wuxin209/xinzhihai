@@ -1,39 +1,29 @@
-// 爆款趋势接口（市场分析页） /api/market/trends?country=美国&limit=6&refresh=1
-// 定位：目标五国（美国/加拿大/日本/韩国/泰国）当下真实流行趋势 / 蓝海爆品，每次每国固定返回 6 组
-// 数据源：① Google News RSS 按国家+本地语言抓"热销/趋势/选品"实时资讯（主）
-//       ② AMZ123早报(/zb) + TT123(/t) 中含选品/爆品/趋势/榜单的文章（补充）
-//       ③ 五国人工精选池兜底，按日期轮换，保证任何时候每国都恰好 6 组、且每天打开不一样
+// 爆款趋势接口（重写版·极简稳定） /api/market/trends?country=美国&limit=6&refresh=1
+// 定位：每国固定返回 6 组热搜词 + 6 组趋势产品，切换站点/换一批/搜索都要快而稳
+// 数据源（全部为实测可达快源）：
+//   ① AMZ123 TOP 搜索词榜（美/加/墨/日）：https://www.amz123.com/usatopkeywords/1 等，本地实测 <1s
+//   ② TT123 导航文章（泰/韩等）：https://www.tt123.com/t/，本地实测 <1s
+//   ③ 各国人工精选池（FBM 数据多于 FBA，TikTok直邮/海外仓充足），按日期轮换兜底
+// 已移除：Google News / Google Trends / Pinterest（本环境不可达，只拖慢接口）
+// 缓存：mem（单实例）+ caches.default（跨实例），实时 30min / 兜底 5min
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 const CACHE_TTL = 30 * 60 * 1000;
-const mem = new Map(); // country -> {t, data}
+const mem = new Map();
 
 function timeoutSignal(ms) {
   const ctrl = new AbortController();
   setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, ms);
   return ctrl.signal;
 }
-async function fetchText(url, ms = 8000) {
+async function fetchText(url, ms = 4000) {
   const resp = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' }, signal: timeoutSignal(ms) });
   if (!resp.ok) throw new Error('HTTP ' + resp.status);
   return await resp.text();
 }
-// AMZ123 各国站 TOP 搜索词榜（亚马逊后台 ABA 品牌分析数据，一周更新，实时性最高）
-const AMZ123_TOP = {
-  '美国': 'https://www.amz123.com/usatopkeywords/1',
-  '加拿大': 'https://www.amz123.com/catopkeywords/1',
-  '墨西哥': 'https://www.amz123.com/mxtopkeywords/1',
-  '日本': 'https://www.amz123.com/jptopkeywords/1'
-};
-function parseTopWords(html, max = 10) {
-  const out = [];
-  // 词条 <a> 元素同时含 title 与 table-body-item-words-word（属性顺序不定，整体匹配后取 title）
-  const re = /<a[^>]*title="([^"]{2,60})"[^>]*table-body-item-words-word[^>]*>|<a[^>]*table-body-item-words-word[^>]*title="([^"]{2,60})"[^>]*>/g;
-  let m;
-  while ((m = re.exec(html)) && out.length < max) {
-    const w = (m[1] || m[2] || '').trim();
-    if (w && !/[<>]/.test(w)) out.push(w);
-  }
-  return out;
+function dayOfYear() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now - start) / 86400000);
 }
 function decodeEntities(s) {
   if (!s) return '';
@@ -42,23 +32,52 @@ function decodeEntities(s) {
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
     .replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 }
-function dayOfYear() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  return Math.floor((now - start) / 86400000);
+function cleanTitle(t) {
+  let x = decodeEntities(t).replace(/\s*[-–—|｜]\s*[^-–—|｜]{0,30}(news|资讯|晚报|早报|日报|网|报|频道)$/i, '').trim();
+  return x;
 }
 
-// 五国元信息：flag + Google News 地区/语言 + 实时查询词 + 中文行业稿相关性正则（避免把同一篇全球通稿塞给每个国家）
+// AMZ123 各国站 TOP 搜索词榜（亚马逊后台 ABA 品牌分析数据，一周更新，实时性最高）
+const AMZ123_TOP = {
+  '美国': 'https://www.amz123.com/usatopkeywords/1',
+  '加拿大': 'https://www.amz123.com/catopkeywords/1',
+  '墨西哥': 'https://www.amz123.com/mxtopkeywords/1',
+  '日本': 'https://www.amz123.com/jptopkeywords/1'
+};
+function parseTopWords(html, max = 160) {
+  const out = [];
+  const re = /<a[^>]*title="([^"]{2,60})"[^>]*table-body-item-words-word[^>]*>|<a[^>]*table-body-item-words-word[^>]*title="([^"]{2,60})"[^>]*>/g;
+  let m;
+  while ((m = re.exec(html)) && out.length < max) {
+    const w = (m[1] || m[2] || '').trim();
+    if (w && !/[<>]/.test(w)) out.push(w);
+  }
+  return out;
+}
+// AMZ123 / TT123 文章列表里挑"选品/趋势/爆品/榜单"相关
+function parseNavTitles(html, host) {
+  const out = [];
+  const re = new RegExp('<a[^>]*href="https?://www\\.' + host + '\\.com/t/[A-Za-z0-9]+"[^>]*>', 'g');
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const tm = m[0].match(/title="([^"]+)"/) || m[0].match(/data-sdk-resource-id="([^"]+)"/);
+    if (!tm) continue;
+    const title = decodeEntities(tm[1]);
+    if (/选品|爆品|趋势|热销|热搜|搜索量|销量|增速|榜单|品类|蓝海|风口|增长|走红|出圈|爆发|爆单|带货|卖爆|爆款|热门|人气|バズ|ベスト|베스트|히트|ขายดี|มาแรง/.test(title)) out.push(title);
+  }
+  return out;
+}
+
+// 各国元信息
 const COUNTRY = {
-  美国:   { flag: '🇺🇸', gl: 'US', hl: 'en-US', ceid: 'US:en',  win: '7d',  q: ['Amazon best sellers', 'TikTok made me buy it', 'Amazon movers and shakers', 'trending products 2026'], rel: /美国|美区|美站|北美|美元|U\.?S\.?A?|American/i },
-  加拿大: { flag: '🇨🇦', gl: 'CA', hl: 'en-CA', ceid: 'CA:en',  win: '14d', q: ['Amazon Canada best sellers', 'trending products Canada', 'TikTok shop Canada'], rel: /加拿大|加国|加站|Canada|Canadian/i },
-  日本:   { flag: '🇯🇵', gl: 'JP', hl: 'ja',    ceid: 'JP:ja',  win: '14d', q: ['Amazon 売れ筋', 'TikTok バズ', 'トレンド 商品', '楽天 売れ筋'], rel: /日本|日亚|日系|乐天|Japan|Japanese|円/i },
-  韩国:   { flag: '🇰🇷', gl: 'KR', hl: 'ko',    ceid: 'KR:ko',  win: '14d', q: ['쿠팡 베스트', '틱톡 인기 상품', '해외직구 인기', '쇼핑 트렌드'], rel: /韩国|韩区|韩站|酷胖|Coupang|Korea|Korean|원/i },
-  泰国:   { flag: '🇹🇭', gl: 'TH', hl: 'th',    ceid: 'TH:th',  win: '14d', q: ['TikTok Shop ขายดี', 'สินค้ามาแรง', 'Shopee ขายดี', 'Lazada ขายดี'], rel: /泰国|泰区|泰站|东南亚|Thailand|Thai|Shopee|Lazada|บาท/i },
-  墨西哥: { flag: '🇲🇽', gl: 'MX', hl: 'es-MX', ceid: 'MX:es', win: '14d', q: ['Amazon México más vendidos', 'productos virales TikTok', 'tendencias compras'], rel: /墨西哥|墨站|墨区|México|Mexico|Mexican|MXN/i }
+  美国:   { flag: '🇺🇸', rel: /美国|美区|美站|北美|美元|U\.?S\.?A?|American/i },
+  加拿大: { flag: '🇨🇦', rel: /加拿大|加国|加站|Canada|Canadian/i },
+  日本:   { flag: '🇯🇵', rel: /日本|日亚|日系|乐天|Japan|Japanese|円/i },
+  韩国:   { flag: '🇰🇷', rel: /韩国|韩区|韩站|酷胖|Coupang|Korea|Korean|원/i },
+  泰国:   { flag: '🇹🇭', rel: /泰国|泰区|泰站|东南亚|Thailand|Thai|Shopee|Lazada|บาท/i },
+  墨西哥: { flag: '🇲🇽', rel: /墨西哥|墨站|墨区|México|Mexico|Mexican|MXN/i }
 };
 
-// 从标题推断平台/货型/热度
 function inferPlatform(t) {
   if (/tiktok|틱톡|พิคต๊อก|抖音/i.test(t)) return 'TikTok直邮';
   if (/海外仓|备货|warehouse/i.test(t)) return '海外仓备仓';
@@ -74,10 +93,6 @@ function inferCargo(t) {
   if (/液体|膏|喷雾|电池|电子|带电|磁|粉末|护肤|化妆|香水/i.test(t)) tags.push('敏感货');
   return [...new Set(tags)];
 }
-function cleanTitle(t) {
-  let x = decodeEntities(t).replace(/\s*[-–—|｜]\s*[^-–—|｜]{0,30}(news|资讯|晚报|早报|日报|网|报|频道)$/i, '').trim();
-  return x;
-}
 function makeLiveItem(country, flag, title, source) {
   const t = cleanTitle(title);
   const name = t.length > 30 ? t.slice(0, 30) + '…' : t;
@@ -90,83 +105,7 @@ function makeLiveItem(country, flag, title, source) {
   };
 }
 
-// Google 标题的"商品/消费"相关性过滤：只留购物消费类，剔除娱乐/音乐/影视/政治/体育等噪声
-const PRODUCT_HINT = /商品|売れ|ベスト|ヒット|買|ギフト|コスメ|雑貨|通販|グッズ|상품|베스트|인기|쇼핑|코스메|สินค้า|ขายดี|ช้อป|ของกิน|best[\s-]?sell|product|products|amazon|tiktok shop|gift|gadget|\bbuy\b|deal|movers|costco|retail|consumer|launch|brand|viral item/i;
-const NOISE = /歌|曲|アニメ|映画|ドラマ|歌手|メンバー|ライブ|コンサート|アイドル|俳優|女優|文庫|書籍|コミック|単行本|新書|ノベライト|노래|아이돌|드라마|영화|가수|콘서트|เพลง|ดารา|song|music|album|movie|film|celebrity|election|politic|trump|biden|war|\bgame\b|match|score|actor|singer|concert|trailer|anime/i;
-function isProductTitle(t) {
-  if (NOISE.test(t) && !/product|商品|상품|สินค้า|best[\s-]?sell/i.test(t)) return false;
-  return PRODUCT_HINT.test(t);
-}
-// 解析 Google News RSS
-function parseGoogleRss(xml) {
-  const out = [];
-  const blocks = xml.split('<item>').slice(1);
-  for (const b of blocks) {
-    const m = b.match(/<title>([\s\S]*?)<\/title>/);
-    if (!m) continue;
-    const title = cleanTitle(m[1]).replace(/\s*[-–—]\s*[^-–—]+$/, '');
-    if (title.length >= 8 && isProductTitle(title)) out.push(title);
-  }
-  return out;
-}
-// Google Trends 每日热搜（按国家，真实全球热搜，来源 trends.google.com）
-async function fetchGoogleTrends(gl) {
-  const resp = await fetch('https://trends.google.com/trends/api/dailytrends?hl=zh-CN&geo=' + gl + '&ns=15', {
-    headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' }, signal: timeoutSignal(3000)
-  });
-  if (!resp.ok) throw new Error('GT HTTP ' + resp.status);
-  let raw = await resp.text();
-  if (raw.startsWith(')]}')) raw = raw.slice(4).trim();
-  const d = JSON.parse(raw);
-  const arr = (d.default && d.default.trendingSearchesDays && d.default.trendingSearchesDays[0] && d.default.trendingSearchesDays[0].trendingSearches) || [];
-  return arr.map(t => (t.title && t.title.query) || '').filter(Boolean).slice(0, 10);
-}
-// Pinterest 趋势主题（参考源，失败静默）
-async function fetchPinterestTrends(cc) {
-  const resp = await fetch('https://trends.pinterest.com/api/topics/?countryCode=' + cc, {
-    headers: { 'User-Agent': UA, 'Accept-Language': 'en;q=0.9' }, signal: timeoutSignal(3000)
-  });
-  if (!resp.ok) throw new Error('PT HTTP ' + resp.status);
-  const raw = await resp.text();
-  const d = JSON.parse(raw);
-  const arr = d.trending || d.topics || [];
-  return arr.map(t => (t && (t.name || t.topic || t.query)) || '').filter(Boolean).slice(0, 8);
-}
-async function googleFor(cfg) {
-  const out = [];
-  const seen = new Set();
-  const win = cfg.win || '14d';
-  // 并发请求、整体最多等 ~9s，保证接口快速返回；拿不到就交给精选兜底，绝不拖垮函数
-  await Promise.all(cfg.q.map(async (q) => {
-    try {
-      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:' + win)}&hl=${cfg.hl}&gl=${cfg.gl}&ceid=${cfg.ceid}`;
-      const xml = await fetchText(url, 2500);
-      for (const t of parseGoogleRss(xml).slice(0, 6)) {
-        const k = t.slice(0, 18);
-        if (seen.has(k)) continue;
-        seen.add(k); out.push(t);
-      }
-    } catch (e) {}
-  }));
-  return out;
-}
-
-// AMZ123 / TT123 文章列表里挑"选品/趋势/爆品/榜单"相关
-function parseNavTitles(html, host) {
-  const out = [];
-  const re = new RegExp('<a[^>]*href="https?://www\\.' + host + '\\.com/t/[A-Za-z0-9]+"[^>]*>', 'g');
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const tm = m[0].match(/title="([^"]+)"/) || m[0].match(/data-sdk-resource-id="([^"]+)"/);
-    if (!tm) continue;
-    const title = decodeEntities(tm[1]);
-    if (/选品|爆品|趋势|热销|热搜|搜索量|销量|增速|榜单|品类|蓝海|风口|增长|走红|出圈|爆发|爆单|带货|卖爆|爆款|热门|人气|バズ|ベスト|베스트|히트|ขายดี|มาแรง/.test(title)) out.push(title);
-  }
-  return out;
-}
-
-// 五国人工精选兜底池（FBM 数据多于 FBA，TikTok直邮/海外仓充足），按日期轮换
-// 各国热搜词兜底池（AMZ123 ABA 榜单抓取失败时的本地保底，按日期轮换）
+// 各国热搜词兜底池 + 趋势产品精选池（按日期轮换）
 const KW_FLOOR = {
   美国: ['needoh', 'squishy', 'halloween decorations', 'iphone 18 pro max case', 'magnesium glycinate', 'air fryer liners', 'owala water bottle', 'paper towels', 'toilet paper', 'kindle'],
   加拿大: ['kindle', 'lego', 'squishy', 'halloween decor', 'vitamin c', 'needoh', 'air fryer', 'water flosser', 'tire inflator', 'roomba'],
@@ -185,15 +124,6 @@ const FLOOR = {
     { name: '旅行分装瓶+防水标签套装', category: '旅行收纳', heatLevel: '中', platform: '亚马逊FBM', seasonTrend: '旅游旺季', cargoTags: ['普货', '轻小件'], reason: '美国出行与跨境旅行复苏，分装瓶是出行必备，小套轻装适合FBM。', viralPoint: '痛点：登机液体超限、瓶罐分不清哪个是洗发沐浴、标签沾水掉。爆点：防漏硅胶阀+多瓶套装+防水分类标签+透明收纳袋。' },
     { name: 'LED日落灯/氛围投影灯', category: '家居灯饰', heatLevel: '高', platform: 'TikTok直邮', seasonTrend: '全年，秋冬更旺', cargoTags: ['普货', '敏感货'], reason: '氛围灯在TikTok和Ins出镜率极高，年轻人布置房间刚需，视频展示效果好。', viralPoint: '痛点：出租屋光线差、拍照没氛围、普通灯太刺眼。爆点：180度投影+多色切换+USB供电+夹子底座随处固定+一键出大片。' },
     { name: '男士理容胡须修剪套装', category: '个护美容', heatLevel: '中', platform: '亚马逊FBM', seasonTrend: '全年', cargoTags: ['普货', '敏感货'], reason: '男士理容是稳定增长类目，套装客单更高、复购耗材（刀头油）带动。', viralPoint: '痛点：胡须长短不齐、剃完泛红、鼻毛耳毛没工具。爆点：一机多头+限位梳多档+防水可冲洗+静音马达+收纳底座。' }
-  ],  墨西哥: [
-    { name: '太阳镜 / 偏光墨镜', platform: '亚马逊FBM', cargo: '轻小件', heat: 78, reason: '墨西哥紫外线强、墨镜刚需，偏光款当地热卖', viralPoint: '亚马逊墨西哥站常青款+夏季刚需', seasonTrend: '全年' },
-    { name: '无线耳机 / 蓝牙耳机', platform: 'TikTok直邮', cargo: '轻小件', heat: 80, reason: '拉美年轻群体对高性价比无线耳机需求旺盛', viralPoint: 'TikTok 种草高转化、客单价友好', seasonTrend: '全年' },
-    { name: '发饰/发夹组合装', platform: 'TikTok直邮', cargo: '轻小件', heat: 74, reason: '墨西哥女性消费活跃，发饰走量快', viralPoint: '低客单走量、视频展示效果好', seasonTrend: '全年' },
-    { name: '厨房硅胶刮刀/烘焙套装', platform: '亚马逊FBM', cargo: '轻小件', heat: 72, reason: '家庭烘焙流行，硅胶厨具套装易出单', viralPoint: 'Amazon 墨西哥站上升类目', seasonTrend: 'Q4' },
-    { name: '手机支架/桌面支架', platform: '海外仓备仓', cargo: '轻小件', heat: 76, reason: '直播/短视频时代手机支架刚需', viralPoint: '多场景使用、拍摄配件联动', seasonTrend: '全年' },
-    { name: '健身阻力带/弹力绳', platform: '亚马逊FBM', cargo: '轻小件', heat: 70, reason: '居家健身热潮，弹力带轻便易投', viralPoint: '健身内容带动搜索', seasonTrend: '全年' },
-    { name: '儿童益智玩具（拼图/积木）', platform: '海外仓备仓', cargo: '中件', heat: 73, reason: '节日送礼刚需，墨西哥家庭支出偏重孩子', viralPoint: '圣诞/儿童节节点爆发', seasonTrend: 'Q4' },
-    { name: '宠物梳毛/清洁用品', platform: 'TikTok直邮', cargo: '轻小件', heat: 69, reason: '宠物经济升温，梳毛器视频演示性强', viralPoint: '宠物视频自带流量', seasonTrend: '全年' }
   ],
   加拿大: [
     { name: '冬季车窗除雪/刮雪冰铲（加长款）', category: '汽车用品', heatLevel: '高', platform: '海外仓备仓', seasonTrend: '秋冬旺季', cargoTags: ['普货'], reason: '加拿大冬季漫长多冰雪，除雪工具是强季节性刚需，海外仓提前备才能赶上初雪爆发。', viralPoint: '痛点：清晨车窗结冰刮不动、短铲够不到整片挡风玻璃、冻手。爆点：加长手柄+刮雪刷破冰三合一+防冻材质不脆裂+EVA保暖握把。' },
@@ -234,6 +164,16 @@ const FLOOR = {
     { name: '便携小风扇/挂脖手持两用', category: '生活小家电', heatLevel: '高', platform: 'TikTok直邮', seasonTrend: '热季爆卖', cargoTags: ['普货', '敏感货'], reason: '泰国全年偏热，小风扇是刚需中的刚需，TikTok展示风力与静音效果转化高。', viralPoint: '痛点：热到没空调不行、手持占手、风扇噪音大风还小。爆点：挂脖手持两用+大风力静音+长续航+Type-C+马卡龙色。' },
     { name: '防水手机袋/漂流触屏套', category: '3C配件', heatLevel: '中', platform: 'TikTok直邮', seasonTrend: '宋干节/旅游季', cargoTags: ['普货', '轻小件'], reason: '泰国宋干节泼水、海岛游场景刚需防水袋，节庆前爆发，轻小直邮灵活补货。', viralPoint: '痛点：泼水玩水手机报废、防水袋触屏不灵、拍照模糊。爆点：IPX8防水+高清触屏拍照+气囊防沉+挂绳稳固。' },
     { name: '硅胶折叠餐盒/便当保鲜盒', category: '餐厨用品', heatLevel: '中', platform: '亚马逊FBM', seasonTrend: '全年', cargoTags: ['普货'], reason: '泰国带餐与外食文化结合，折叠餐盒省空间、色彩丰富受欢迎，FBM可做。', viralPoint: '痛点：餐盒占包、玻璃的太重、密封不好漏汤汁。爆点：硅胶可折叠压扁+四扣密封+可微波可冷藏+轻量化多色。' }
+  ],
+  墨西哥: [
+    { name: '太阳镜 / 偏光墨镜', platform: '亚马逊FBM', cargo: '轻小件', heat: 78, reason: '墨西哥紫外线强、墨镜刚需，偏光款当地热卖', viralPoint: '亚马逊墨西哥站常青款+夏季刚需', seasonTrend: '全年' },
+    { name: '无线耳机 / 蓝牙耳机', platform: 'TikTok直邮', cargo: '轻小件', heat: 80, reason: '拉美年轻群体对高性价比无线耳机需求旺盛', viralPoint: 'TikTok 种草高转化、客单价友好', seasonTrend: '全年' },
+    { name: '发饰/发夹组合装', platform: 'TikTok直邮', cargo: '轻小件', heat: 74, reason: '墨西哥女性消费活跃，发饰走量快', viralPoint: '低客单走量、视频展示效果好', seasonTrend: '全年' },
+    { name: '厨房硅胶刮刀/烘焙套装', platform: '亚马逊FBM', cargo: '轻小件', heat: 72, reason: '家庭烘焙流行，硅胶厨具套装易出单', viralPoint: 'Amazon 墨西哥站上升类目', seasonTrend: 'Q4' },
+    { name: '手机支架/桌面支架', platform: '海外仓备仓', cargo: '轻小件', heat: 76, reason: '直播/短视频时代手机支架刚需', viralPoint: '多场景使用、拍摄配件联动', seasonTrend: '全年' },
+    { name: '健身阻力带/弹力绳', platform: '亚马逊FBM', cargo: '轻小件', heat: 70, reason: '居家健身热潮，弹力带轻便易投', viralPoint: '健身内容带动搜索', seasonTrend: '全年' },
+    { name: '儿童益智玩具（拼图/积木）', platform: '海外仓备仓', cargo: '中件', heat: 73, reason: '节日送礼刚需，墨西哥家庭支出偏重孩子', viralPoint: '圣诞/儿童节节点爆发', seasonTrend: 'Q4' },
+    { name: '宠物梳毛/清洁用品', platform: 'TikTok直邮', cargo: '轻小件', heat: 69, reason: '宠物经济升温，梳毛器视频演示性强', viralPoint: '宠物视频自带流量', seasonTrend: '全年' }
   ]
 };
 
@@ -248,59 +188,56 @@ function rotateFloor(list, doy, n, jitter) {
 async function handle({ request }) {
   const url = new URL(request.url);
   let country = url.searchParams.get('country') || '美国';
-  // 兼容国家代码（us/ca/jp/mx/kr/th）与英文全名，统一映射为中文名
   const CC_MAP = { us: '美国', usa: '美国', ca: '加拿大', canada: '加拿大', jp: '日本', japan: '日本', mx: '墨西哥', mexico: '墨西哥', kr: '韩国', korea: '韩国', th: '泰国', thailand: '泰国' };
   const countryRaw = String(country).trim().toLowerCase();
   if (CC_MAP[countryRaw]) country = CC_MAP[countryRaw];
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '6', 10) || 6, 12);
-  const category = url.searchParams.get('category') || ''; // keywords=热搜词榜 / products=趋势产品
+  const category = url.searchParams.get('category') || '';
   const refresh = url.searchParams.get('refresh') === '1';
   const kwQ = (url.searchParams.get('q') || '').trim().toLowerCase();
   if (!FLOOR[country]) country = '美国';
   const cfg = COUNTRY[country];
   const flag = cfg.flag;
 
-  // 默认模式缓存（搜索请求 q 存在时跳过缓存，必须实时搜索）
+  // 缓存：默认模式（含 category 分类）命中跨实例缓存，避免重复抓取
   if (!refresh && !kwQ) {
-    const hit = mem.get(country);
-    if (hit && Date.now() - hit.t < hit.ttl) {
-      return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
-    }
-    // 跨实例缓存（Cloudflare Cache API，冷启动也命中）
+    const ck = 'xzh-trends-v2-' + country + (category ? '-' + category : '');
     try {
-      const ck = 'xzh-trends-' + country + (category ? '-' + category : '');
       const chit = await caches.default.match(ck);
       if (chit && chit.ok) {
         const data = await chit.json();
         return new Response(JSON.stringify({ ...data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
     } catch (e) {}
+    const hit = mem.get(ck);
+    if (hit && Date.now() - hit.t < hit.ttl) {
+      return new Response(JSON.stringify({ ...hit.data, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    }
   }
 
   const doy = dayOfYear();
+  const jitter = refresh ? Math.floor(Math.random() * 100000) : 0;
 
-  // ===== 关键词搜索：联网热度判断（Bing 网页搜索结果标题 + AMZ123 TOP 1-160 命中）=====
+  // ===== 关键词搜索：AMZ123 TOP 词命中 + Bing 标题，整体 5.5s 硬截止 =====
   if (kwQ) {
     const qs = kwQ.split(/\s+/).filter(Boolean);
-    const dec = (s) => (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').trim();
-    // 源1+源2 并行：Bing 网页搜索（模拟"浏览器前三页"）+ AMZ123 TOP 1-160 词命中，整体 8s 硬截止
     const newsTitles = [];
     let topWords = [];
     const topUrl = AMZ123_TOP[country];
     const bUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(kwQ) + '&count=30';
     await Promise.race([
       Promise.all([
-        fetchText(bUrl, 4500).then(html => {
+        fetchText(bUrl, 3800).then(html => {
           for (const m of [...html.matchAll(/<h2><a[^>]*>(.*?)<\/a><\/h2>/g)].slice(0, 12)) {
-            const t = dec(m[1].replace(/<[^>]+>/g, ''));
+            const t = decodeEntities(m[1].replace(/<[^>]+>/g, ''));
             if (t && t.length > 3 && !newsTitles.includes(t)) newsTitles.push(t);
           }
         }).catch(() => {}),
         topUrl
-          ? fetchText(topUrl, 4000).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
+          ? fetchText(topUrl, 3500).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
           : Promise.resolve()
       ]),
-      new Promise(r => setTimeout(r, 6500))
+      new Promise(r => setTimeout(r, 5500))
     ]);
     const kwLow = kwQ.toLowerCase();
     const hitWords = [...new Set(topWords.map(w => String(w).trim()).filter(w => {
@@ -314,27 +251,18 @@ async function handle({ request }) {
       ? '近期未收录到热度数据，建议自行查阅亚马逊ABA后台或Google Trends'
       : '联网热度判断：' + verdict + '（关键词「' + kwQ + '」' + (kwHitNews.length ? 'Bing搜索前' + Math.min(newsTitles.length, 12) + '条结果' : '') + (hitWords.length ? (kwHitNews.length ? '、' : '') + '命中AMZ123 TOP榜' + hitWords.length + '个词' : '') + '）';
     const searchKw = hitWords.slice(0, 6).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: verdict === '热门' ? '高' : '中', reason: reasonBase, viralPoint: '相关热搜词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
-    // 资讯标题高频词补充（出现频次最高的词，作为"前三页最多出现的"判断）
-    const STOP = new Set(['the','and','for','are','with','that','this','from','have','has','your','youre','will','was','were','not','but','all','can','its','new','now','per','amazon','google','news']);
-    const freq = {};
-    for (const t of newsTitles) {
-      for (const w of t.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)) {
-        if (w.length > 3 && !STOP.has(w)) freq[w] = (freq[w] || 0) + 1;
-      }
-    }
-    const topFreq = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([w], i) => ({ id: 'nw-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '关键词「' + kwQ + '」Bing搜索高频词（前' + Math.min(newsTitles.length, 12) + '条结果统计）', viralPoint: '搜索高频词：' + w, platform: 'Bing', seasonTrend: '实时', cargoTags: '热搜词', live: true, search: true }));
-    const merged = [...searchKw, ...topFreq].slice(0, 6);
+    const merged = searchKw.length ? searchKw : (newsTitles.length ? [{ id: 'nw-0', name: kwQ, country, flag, category: '热搜词榜', heatLevel: '中', reason: '关键词「' + kwQ + '」在Bing搜索结果中出现（前' + Math.min(newsTitles.length, 12) + '条）', viralPoint: '搜索高频词：' + kwQ, platform: 'Bing', seasonTrend: '实时', cargoTags: '热搜词', live: true, search: true }] : []);
     const result = {
       search: { q: kwQ, hit: merged.length, verdict, newsCount: newsTitles.length },
       source: newsTitles.length ? 'live:BingSearch+AMZ123' : (hitWords.length ? 'live:AMZ123' : '未收录'),
-      country, flag, count: merged.length,
-      liveCount: merged.length,
-      keywords: merged, trends: [],
-      items: merged,
+      country, flag, count: merged.length, liveCount: merged.length,
+      keywords: merged, trends: [], items: merged,
       updated: new Date().toLocaleString('zh-CN')
     };
     return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   }
+
+  // ===== 默认模式：并发抓取 AMZ123 TOP 词榜 + AMZ123/TT123 导航文章，整体 3s 硬截止 =====
   const sources = [];
   const live = [];
   const kwLive = [];
@@ -348,36 +276,25 @@ async function handle({ request }) {
   const pushKw = (w, src) => {
     if (!w || seen.has(w)) return;
     seen.add(w);
-    kwLive.push({ id: 'kw-' + Math.abs([...w].reduce((a, c) => a + c.charCodeAt(0), 0)), name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·'+country+'站TOP搜索词榜（来源：'+src+'，每周更新）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true });
+    kwLive.push({ id: 'kw-' + Math.abs([...w].reduce((a, c) => a + c.charCodeAt(0), 0)), name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（来源：' + src + '，每周更新）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true });
   };
 
-  // ①+② 并发抓取 Google News（主）与 AMZ123/TT123（补），整体硬截止 4.2s，到点用已拿到的部分，确保冷启动也远快于前端 8s 超时、不会把用户晾在本地数据
-  const rel = cfg.rel;
-  const pick = (arr, src) => arr.filter(t => rel.test(t)).slice(0, 4).forEach(t => pushLive(t, src));
-  const pGoogle = googleFor(cfg).then(g => {
-    if (g.length) { sources.push('GoogleNews'); g.slice(0, 8).forEach(t => pushLive(t, 'Google资讯')); }
-  }).catch(() => {});
   const pTrade = (async () => {
     const topUrl = AMZ123_TOP[country];
-    const ptCC = { 美国: 'US', 加拿大: 'CA', 日本: 'JP', 韩国: 'KR', 泰国: 'TH', 墨西哥: 'MX' }[country] || 'US';
-    const [zb, tt, top, gt, pt] = await Promise.all([
-      fetchText('https://www.amz123.com/zb', 2800).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
-      fetchText('https://www.tt123.com/t/', 2800).then(h => parseNavTitles(h, 'tt123')).catch(() => []),
-      topUrl ? fetchText(topUrl, 2800).then(h => parseTopWords(h, 160)).catch(() => []) : Promise.resolve([]),
-      fetchGoogleTrends(cfg.gl).catch(() => []),
-      fetchPinterestTrends(ptCC).catch(() => [])
+    const [top, zb, tt] = await Promise.all([
+      topUrl ? fetchText(topUrl, 2500).then(h => parseTopWords(h, 160)).catch(() => []) : Promise.resolve([]),
+      fetchText('https://www.amz123.com/zb', 2500).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
+      fetchText('https://www.tt123.com/t/', 2500).then(h => parseNavTitles(h, 'tt123')).catch(() => [])
     ]);
-    // 热搜词进独立热搜词榜：AMZ123 买家真实搜索词第一，Google 每日热搜第二（TOP 1-160 词全量入池，展示前 6 条轮换）
     if (top.length) { const before = kwLive.length; top.slice(0, 160).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
-    if (gt.length) { const before = kwLive.length; gt.slice(0, 6).forEach(t => pushKw(t, 'Google每日热搜')); if (kwLive.length > before) sources.push('Google每日热搜'); }
+    const rel = cfg.rel;
+    const pick = (arr, src) => arr.filter(t => rel.test(t)).slice(0, 4).forEach(t => pushLive(t, src));
     if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
     if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
-    if (pt.length) { const before = live.length; pt.slice(0, 4).forEach(t => pushLive(t, 'Pinterest趋势')); if (live.length > before) sources.push('Pinterest'); }
   })().catch(() => {});
-  await Promise.race([Promise.allSettled([pGoogle, pTrade]), new Promise(r => setTimeout(r, 3000))]);
+  await Promise.race([pTrade, new Promise(r => setTimeout(r, 3000))]);
 
-  // ③ 热搜词榜：live 热销词优先，不足用 KW_FLOOR 按日期轮换补齐到 6（每日固定 6 条，换一批随机偏移）
-  const jitter = refresh ? Math.floor(Math.random() * 100000) : 0;
+  // 热搜词榜：live 热销词优先，KW_FLOOR 按日期轮换补齐到 6
   const kwFloor = KW_FLOOR[country] || [];
   const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
     .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
@@ -386,7 +303,7 @@ async function handle({ request }) {
   for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
   while (keywords.length < 6 && kwRot.length) keywords.push(kwRot[keywords.length % kwRot.length]);
 
-  // ④ 趋势产品：live 趋势资讯（Google/早报/TT123）优先，FLOOR 兜底，补足到 limit
+  // 趋势产品：live 优先，FLOOR 兜底补足到 limit
   const floor = rotateFloor(FLOOR[country], doy, FLOOR[country].length, jitter)
     .map((x, i) => ({ id: 'floor-' + country + '-' + i, country, flag, ...x }));
   const trends = [];
@@ -394,8 +311,7 @@ async function handle({ request }) {
   for (const it of floor) { if (trends.length >= limit) break; trends.push(it); }
   while (trends.length < limit && floor.length) trends.push(floor[trends.length % floor.length]);
 
-    const result = {
-    search: kwQ ? { q: kwQ, hit: searchKw ? searchKw.length : 0 } : undefined,
+  const result = {
     source: sources.length ? 'live:' + sources.join('+') : 'curated-floor',
     country, flag, count: keywords.length + trends.length,
     liveCount: kwLive.length + live.length,
@@ -403,7 +319,6 @@ async function handle({ request }) {
     items: [...keywords, ...trends],
     updated: new Date().toLocaleString('zh-CN')
   };
-  // category 区分：keywords 只返回热搜词榜，products 只返回趋势产品
   if (category === 'keywords') {
     result.items = result.keywords;
     result.count = result.keywords.length;
@@ -413,10 +328,12 @@ async function handle({ request }) {
     result.count = result.trends.length;
     result.liveCount = live.length;
   }
-  // 有实时数据缓存30分钟；纯兜底只缓存5分钟，便于联网恢复后尽快回到实时
-  mem.set(country, { t: Date.now(), ttl: (kwLive.length || live.length) ? CACHE_TTL : 5 * 60 * 1000, data: result });
+
+  // 写缓存：有实时数据 30min，纯兜底 5min
+  const ttl = (kwLive.length || live.length) ? CACHE_TTL : 5 * 60 * 1000;
+  const ck = 'xzh-trends-v2-' + country + (category ? '-' + category : '');
+  mem.set(ck, { t: Date.now(), ttl, data: result });
   try {
-    const ck = 'xzh-trends-' + country + (category ? '-' + category : '');
     await caches.default.put(ck, new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=' + ((kwLive.length || live.length) ? 1800 : 300) }
     }));
@@ -426,7 +343,7 @@ async function handle({ request }) {
   });
 }
 
-// 顶层兜底：任何意外都返回 JSON（items 为空时前端自动回退本地池），绝不返回 HTML/空响应导致白屏
+// 顶层兜底：任何意外都返回 JSON，绝不白屏
 export async function onRequestGet(ctx) {
   try {
     return await handle(ctx);
