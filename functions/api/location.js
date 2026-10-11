@@ -11,15 +11,27 @@ export async function onRequestGet(context) {
       }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
 
-    const resp = await fetch('https://restapi.amap.com/v3/ip?key=' + AMAP_KEY + '&ip=' + ip, { signal: AbortSignal.timeout(8000) });
+    // 缓存：IP 粒度 60 分钟（IP 定位结果长时间不变，避免每次 8-11s 慢请求）
+    const ck = 'xzh-loc-v1-' + ip;
+    try {
+      const chit = await caches.default.match(ck);
+      if (chit && chit.ok) {
+        const cached = await chit.json();
+        if (cached && cached.location) return new Response(JSON.stringify({ ...cached, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
+    } catch (e) {}
+
+    const resp = await fetch('https://restapi.amap.com/v3/ip?key=' + AMAP_KEY + '&ip=' + ip, { signal: AbortSignal.timeout(6000) });
     const data = await resp.json();
 
     if (data.status === '1' && data.rectangle) {
       const coords = data.rectangle.split(';')[0].split(',');
-      return new Response(JSON.stringify({
+      const body = {
         source: 'amap', province: data.province, city: data.city, adcode: data.adcode,
         location: coords[0] + ',' + coords[1]
-      }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      };
+      try { await caches.default.put(ck, new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
+      return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
     return new Response(JSON.stringify({
       source: 'default', province: '福建省', city: '莆田市', adcode: '350300', location: '119.0078,25.4300'
