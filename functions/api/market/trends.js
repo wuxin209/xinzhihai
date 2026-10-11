@@ -308,22 +308,16 @@ async function handle({ request, waitUntil }) {
     seen.add(w);
     kwLive.push({ id: 'kw-' + Math.abs([...w].reduce((a, c) => a + c.charCodeAt(0), 0)), name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（来源：' + src + '，每周更新）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true });
   };
+  // 只抓实测稳定的 AMZ123 TOP 词榜（美/加/墨/日）；泰/韩无 TOP 源直接本地池，不发不可靠网络请求
   const pTrade = (async () => {
     const topUrl = AMZ123_TOP[country];
-    const [top, zb, tt] = await Promise.all([
-      topUrl ? fetchText(topUrl, 2500).then(h => parseTopWords(h, 160)).catch(() => []) : Promise.resolve([]),
-      fetchText('https://www.amz123.com/zb', 2500).then(h => parseNavTitles(h, 'amz123')).catch(() => []),
-      fetchText('https://www.tt123.com/t/', 2500).then(h => parseNavTitles(h, 'tt123')).catch(() => [])
-    ]);
+    if (!topUrl) return;
+    const top = await fetchText(topUrl, 2000).then(h => parseTopWords(h, 160)).catch(() => []);
     if (top.length) { const before = kwLive.length; top.slice(0, 160).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
-    const rel = cfg.rel;
-    const pick = (arr, src) => arr.filter(t => rel.test(t)).slice(0, 4).forEach(t => pushLive(t, src));
-    if (zb.length) { const before = live.length; pick(zb, 'AMZ123早报'); if (live.length > before) sources.push('AMZ123'); }
-    if (tt.length) { const before = live.length; pick(tt, 'TT123'); if (live.length > before) sources.push('TT123'); }
   })().catch(() => {});
   let pDone = false;
   pTrade.then(() => { pDone = true; }).catch(() => {});
-  await Promise.race([pTrade, new Promise(r => setTimeout(r, 700))]);
+  await Promise.race([pTrade, new Promise(r => setTimeout(r, 2000))]);
   if (pDone) {
     const r = build(kwLive, live, sources);
     store(r, kwLive.length || live.length);
@@ -331,13 +325,7 @@ async function handle({ request, waitUntil }) {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
-  // 700ms 内抓取未完成：先返回本地池，抓取在后台完成并写缓存（30min 内命中即实时）
-  if (waitUntil) {
-    waitUntil(pTrade.then(() => {
-      const r = build(kwLive, live, sources);
-      store(r, kwLive.length || live.length);
-    }).catch(() => {}));
-  }
+  // 2s 内抓取未完成：返回本地池（pTrade 的 fetch 有 2s AbortController 兜底，不会拖死）
   return new Response(JSON.stringify(localResult), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
