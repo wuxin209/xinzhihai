@@ -101,28 +101,11 @@ async function fetchDisasters(debug) {
     }
     return arr;
   };
-  // 源1: Google News 中文（曼谷/泰国重试2次优先，其余1次；整体控制在8秒内）
-  const fetchGoogle = async (item) => {
-    const maxTry = (item.priority === 1 || item.priority === 2) ? 2 : 1;
-    for (let attempt = 0; attempt < maxTry; attempt++) {
-      try {
-        const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(item.q + ' when:7d') + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
-        const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
-        if (resp.ok) {
-          const arr = parseRss(await resp.text(), item, 2);
-          if (arr.length > 0) { if (debug) dlog('Google 命中 ' + item.country + '/' + item.region + ' ' + arr.length + '条'); return arr; }
-          if (debug) dlog('Google 200但无灾害词 ' + item.country + '/' + item.region);
-        } else { if (debug) dlog('Google HTTP ' + resp.status + ' ' + item.region); }
-      } catch (e) { if (debug) dlog('Google 抓取失败 ' + item.region + ': ' + (e.message || e)); }
-      if (attempt < maxTry - 1) await new Promise((r) => setTimeout(r, 350));
-    }
-    return [];
-  };
-  // 源2: GDACS 全球灾害 RSS（按国家过滤兜底；685KB大文件15s独立超时，不被Google 8s硬截止拖累）
+  // GDACS 全球灾害 RSS（按国家过滤兜底；685KB大文件12s独立超时，实测可达稳定源）
   const gdacsP = (async () => {
   try {
     const url = 'https://www.gdacs.org/xml/rss.xml';
-    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(15000) });
+    const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(12000) });
     if (resp.ok) {
       if (debug) dlog('GDACS HTTP 200');
       const xml = await resp.text();
@@ -161,13 +144,8 @@ async function fetchDisasters(debug) {
     } else { if (debug) dlog('GDACS HTTP ' + resp.status); }
   } catch (e) { if (debug) dlog('GDACS 抓取失败: ' + (e.message || e)); }
   })();
-  // Google 组硬截止 8s；GDACS 单独 await（15s 超时），两源并行互不拖累
-  const googleRound = await Promise.race([
-    Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))),
-    new Promise((r) => setTimeout(r, 8000))
-  ]);
-  (Array.isArray(googleRound) ? googleRound : []).forEach((arr) => { if (Array.isArray(arr)) results.push(...arr); });
-  await gdacsP;
+  // 仅等待 GDACS（实测可达稳定源，12s 硬截止）；Google News 已移除（本环境黑洞会拖死接口）
+  await Promise.race([gdacsP, new Promise((r) => setTimeout(r, 12000))]);
   if (debug) dlog('全部抓取完成, results=' + results.length + '条');
   results.sort((a, b) => a.priority - b.priority);
   const seen = new Set();
@@ -192,7 +170,7 @@ async function fetchOpenMeteo() {
   const resp = await fetch(
     'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
     '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max' +
-    '&current=temperature_2m,weather_code,wind_speed_10m&timezone=Asia/Shanghai&forecast_days=7'
+    '&current=temperature_2m,weather_code,wind_speed_10m&timezone=Asia/Shanghai&forecast_days=7', { signal: timeoutSignal(8000) }
   );
   const data = await resp.json();
   const wmo = {0:'晴',1:'大部晴',2:'多云',3:'阴',45:'雾',48:'雾凇',51:'小毛毛雨',53:'毛毛雨',55:'大毛毛雨',61:'小雨',63:'中雨',65:'大雨',71:'小雪',73:'中雪',75:'大雪',80:'阵雨',81:'强阵雨',82:'暴雨',95:'雷暴',96:'雷暴冰雹',99:'强雷暴'};
