@@ -218,7 +218,7 @@ async function handle({ request }) {
   const doy = dayOfYear();
   const jitter = refresh ? Math.floor(Math.random() * 100000) : 0;
 
-  // ===== 关键词搜索：AMZ123 TOP 词命中 + Bing 标题，整体 5.5s 硬截止 =====
+  // ===== 关键词搜索：AMZ123 TOP 词命中 + Bing 标题（短超时），整体 4.5s 硬截止，绝不挂死 =====
   if (kwQ) {
     const qs = kwQ.split(/\s+/).filter(Boolean);
     const newsTitles = [];
@@ -227,17 +227,17 @@ async function handle({ request }) {
     const bUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(kwQ) + '&count=30';
     await Promise.race([
       Promise.all([
-        fetchText(bUrl, 3800).then(html => {
+        fetchText(bUrl, 1500).then(html => {
           for (const m of [...html.matchAll(/<h2><a[^>]*>(.*?)<\/a><\/h2>/g)].slice(0, 12)) {
             const t = decodeEntities(m[1].replace(/<[^>]+>/g, ''));
             if (t && t.length > 3 && !newsTitles.includes(t)) newsTitles.push(t);
           }
         }).catch(() => {}),
         topUrl
-          ? fetchText(topUrl, 3500).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
+          ? fetchText(topUrl, 3000).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
           : Promise.resolve()
       ]),
-      new Promise(r => setTimeout(r, 5500))
+      new Promise(r => setTimeout(r, 4500))
     ]);
     const kwLow = kwQ.toLowerCase();
     const hitWords = [...new Set(topWords.map(w => String(w).trim()).filter(w => {
