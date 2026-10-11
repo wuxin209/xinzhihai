@@ -290,17 +290,17 @@ async function handle({ request }) {
     const bUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(kwQ) + '&count=30';
     await Promise.race([
       Promise.all([
-        fetchText(bUrl, 6000).then(html => {
+        fetchText(bUrl, 4500).then(html => {
           for (const m of [...html.matchAll(/<h2><a[^>]*>(.*?)<\/a><\/h2>/g)].slice(0, 12)) {
             const t = dec(m[1].replace(/<[^>]+>/g, ''));
             if (t && t.length > 3 && !newsTitles.includes(t)) newsTitles.push(t);
           }
         }).catch(() => {}),
         topUrl
-          ? fetchText(topUrl, 5000).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
+          ? fetchText(topUrl, 4000).then(h => { topWords = parseTopWords(h, 160); }).catch(() => {})
           : Promise.resolve()
       ]),
-      new Promise(r => setTimeout(r, 8000))
+      new Promise(r => setTimeout(r, 6500))
     ]);
     const kwLow = kwQ.toLowerCase();
     const hitWords = [...new Set(topWords.map(w => String(w).trim()).filter(w => {
