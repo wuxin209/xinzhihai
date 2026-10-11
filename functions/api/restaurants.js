@@ -66,6 +66,17 @@ export async function onRequestGet(context) {
 
   try {
     if (!AMAP_KEY) return new Response(JSON.stringify({ source: 'fallback', error: '地图API未配置', restaurants: [] }), { headers: { 'Content-Type': 'application/json' } });
+    // 缓存：城市/坐标粒度 60 分钟（馆子数据变化不频繁，首访后可秒回）
+    const ck = 'xzh-rest-v1-' + encodeURIComponent((lat && lng) ? (lat + ',' + lng + '|' + radius) : (city + '|' + keyword + '|' + page));
+    try {
+      const chit = await caches.default.match(ck);
+      if (chit && chit.ok) {
+        const cached = await chit.json();
+        if (cached && cached.restaurants && cached.restaurants.length > 0) {
+          return new Response(JSON.stringify({ ...cached, cached: true }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        }
+      }
+    } catch (e) {}
     // 城市搜索分支：无坐标但有 city 时用高德关键字检索（定位失败场景也能用）
     if (!lat || !lng) {
       if (!city) return new Response(JSON.stringify({ error: '需要lat,lng或city' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -77,7 +88,7 @@ export async function onRequestGet(context) {
             '&keywords=' + encodeURIComponent(keyword) +
             '&city=' + encodeURIComponent(city) + '&citylimit=true' +
             '&offset=20&page=' + page + '&extensions=base&output=JSON';
-          const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+          const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(8000) });
           if (resp.ok) { data = await resp.json(); if (data.status === '1') break; }
         } catch (e) {}
         if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
@@ -97,7 +108,9 @@ export async function onRequestGet(context) {
         rating: '',
         cost: ''
       }));
-      return new Response(JSON.stringify({ source: 'amap-city', city, count: restaurants.length, keyword, restaurants }), {
+      const body = { source: 'amap-city', city, count: restaurants.length, keyword, restaurants };
+      try { await caches.default.put(ck, new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
+      return new Response(JSON.stringify(body), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     }
@@ -109,7 +122,7 @@ export async function onRequestGet(context) {
         const apiUrl = 'https://restapi.amap.com/v3/place/around?key=' + AMAP_KEY +
           '&location=' + lng + ',' + lat + '&keywords=' + encodeURIComponent(keyword) +
           '&radius=' + radius + '&offset=20&page=' + page + '&extensions=base&sortrule=weight&output=JSON';
-        const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
+        const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
         if (resp.ok) { data = await resp.json(); if (data.status === '1') break; }
       } catch (e) {}
       if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
@@ -128,8 +141,10 @@ export async function onRequestGet(context) {
       rating: '',
       cost: ''
     }));
+    const body = { source: 'amap', count: restaurants.length, keyword, restaurants };
+    try { await caches.default.put(ck, new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })); } catch (e) {}
 
-    return new Response(JSON.stringify({ source: 'amap', count: restaurants.length, keyword, restaurants }), {
+    return new Response(JSON.stringify(body), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   } catch (e) {
