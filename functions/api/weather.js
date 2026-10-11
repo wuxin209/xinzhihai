@@ -56,7 +56,13 @@ function pushHit(results, item, title, url, pd) {
   return true;
 }
 const DISASTERS_CACHE_KEY = 'xzh-disasters-v1';
-async function fetchDisasters() {
+function dlog(msg) {
+  try {
+    if (!globalThis.__dlog) globalThis.__dlog = [];
+    globalThis.__dlog.push(msg);
+  } catch (e) {}
+}
+async function fetchDisasters(debug) {
   // 缓存命中优先：上游偶发失败时返回最近 10 分钟成功结果（曼谷水灾等不丢）
   try {
     const cache = caches.default;
@@ -95,9 +101,10 @@ async function fetchDisasters() {
         const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
         if (resp.ok) {
           const arr = parseRss(await resp.text(), item, 2);
-          if (arr.length > 0) return arr;
-        }
-      } catch (e) {}
+          if (arr.length > 0) { if (debug) dlog('Google 命中 ' + item.country + '/' + item.region + ' ' + arr.length + '条'); return arr; }
+          if (debug) dlog('Google 200但无灾害词 ' + item.country + '/' + item.region);
+        } else { if (debug) dlog('Google HTTP ' + resp.status + ' ' + item.region); }
+      } catch (e) { if (debug) dlog('Google 抓取失败 ' + item.region + ': ' + (e.message || e)); }
       if (attempt < maxTry - 1) await new Promise((r) => setTimeout(r, 350));
     }
     return [];
@@ -108,6 +115,7 @@ async function fetchDisasters() {
     const url = 'https://www.gdacs.org/xml/rss.xml';
     const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: timeoutSignal(5000) });
     if (resp.ok) {
+      if (debug) dlog('GDACS HTTP 200');
       const xml = await resp.text();
       const gdacsCount = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
       const regionKeys = [
@@ -137,14 +145,16 @@ async function fetchDisasters() {
         results.push({ flag: item.flag, country: item.country, region: dispRegion, type: hit[1], title: dispTitle, time, url: link, priority: item.priority });
         gdacsCount[idx]++;
       }
-    }
-  } catch (e) {}
+      if (debug) dlog('GDACS 命中 ' + gdacsCount[0]+gdacsCount[1]+gdacsCount[2]+gdacsCount[3]+gdacsCount[4]+gdacsCount[5] + '条');
+    } else { if (debug) dlog('GDACS HTTP ' + resp.status); }
+  } catch (e) { if (debug) dlog('GDACS 抓取失败: ' + (e.message || e)); }
   })();
   // 整体硬截止 8s：9 组并行抓取，到点用已拿到部分，避免拖垮主天气接口
   const googleRound = await Promise.race([
     Promise.all([Promise.all(DISASTER_QUERIES.map((item) => fetchGoogle(item))), gdacsP]),
     new Promise((r) => setTimeout(r, 8000))
   ]);
+  if (debug) dlog('googleRound完成, results=' + results.length + '条');
   googleRound.forEach((arr) => results.push(...arr));
   results.sort((a, b) => a.priority - b.priority);
   const seen = new Set();
