@@ -111,7 +111,7 @@ const KW_FLOOR = {
   加拿大: ['kindle', 'lego', 'squishy', 'halloween decor', 'vitamin c', 'needoh', 'air fryer', 'water flosser', 'tire inflator', 'roomba'],
   日本: ['ちいかわ', 'プロテイン', 'ポケモンカード', '無職転生', 'サプリ', '加湿器', 'ワイヤレスイヤホン', 'スマホケース', 'ドライヤー', 'ゲーミングチェア'],
   韩国: ['쿠팡 인기상품', 'LG gram', '삼성 갤럭시', '화장품 세트', '치킨 프랜차이즈', '골프 용품', '무선청소기', '에어프라이어'],
-  泰国: ['防水手机袋', 'LED灯带', '便携风扇', '防晒霜', '充电宝', '7-11 零食', '泰式彩妆', '挂脖风扇', '旅行分装瓶', '手机支架'],
+  泰国: ['พาวเวอร์แบงค์', 'หูฟังบลูทูธ', 'ครีมกันแดด', 'พัดลมคอ', 'เคสโทรศัพท์', 'ขวดน้ำ', 'ลิปสติก', 'ของเล่นเด็ก', 'กระเป๋าเดินทาง', 'เสื้อยืด', 'รองเท้าผ้าใบ', 'เครื่องสำอาง'],
   墨西哥: ['audifonos', 'zapatos', 'maquillaje', 'proteina', 'air fryer', 'lentes de sol', 'cargador', 'juguetes', 'reloj', 'ropa deportiva']
 };
 const FLOOR = {
@@ -244,16 +244,17 @@ async function handle({ request }) {
       const wl = w.toLowerCase();
       return wl.includes(kwLow) || qs.some(q => q && wl.includes(q.toLowerCase()));
     }))];
-    const kwHitNews = newsTitles.filter(t => t.toLowerCase().includes(kwLow));
+    const kwHitNews = newsTitles.filter(t => t.toLowerCase().includes(kwLow)).slice(0, 5);
     const hitCount = hitWords.length + (kwHitNews.length ? 1 : 0);
     const verdict = hitCount >= 3 ? '热门' : hitCount >= 1 ? '一般' : '未收录';
+    const hitTitles = kwHitNews.length ? kwHitNews.map(t => t.length > 60 ? t.slice(0, 60) + '…' : t) : [];
     const reasonBase = verdict === '未收录'
       ? '近期未收录到热度数据，建议自行查阅亚马逊ABA后台或Google Trends'
-      : '联网热度判断：' + verdict + '（关键词「' + kwQ + '」' + (kwHitNews.length ? 'Bing搜索前' + Math.min(newsTitles.length, 12) + '条结果' : '') + (hitWords.length ? (kwHitNews.length ? '、' : '') + '命中AMZ123 TOP榜' + hitWords.length + '个词' : '') + '）';
+      : '联网热度判断：' + verdict + '（关键词「' + kwQ + '」' + (kwHitNews.length ? 'Bing搜索结果命中' + kwHitNews.length + '条' : '') + (hitWords.length ? (kwHitNews.length ? '、' : '') + '命中AMZ123 TOP榜' + hitWords.length + '个词' : '') + '）';
     const searchKw = hitWords.slice(0, 6).map((w, i) => ({ id: 'kwq-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: verdict === '热门' ? '高' : '中', reason: reasonBase, viralPoint: '相关热搜词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: true, search: true }));
     const merged = searchKw.length ? searchKw : (newsTitles.length ? [{ id: 'nw-0', name: kwQ, country, flag, category: '热搜词榜', heatLevel: '中', reason: '关键词「' + kwQ + '」在Bing搜索结果中出现（前' + Math.min(newsTitles.length, 12) + '条）', viralPoint: '搜索高频词：' + kwQ, platform: 'Bing', seasonTrend: '实时', cargoTags: '热搜词', live: true, search: true }] : []);
     const result = {
-      search: { q: kwQ, hit: merged.length, verdict, newsCount: newsTitles.length },
+      search: { q: kwQ, hit: merged.length, verdict, newsCount: newsTitles.length, hitTitles },
       source: newsTitles.length ? 'live:BingSearch+AMZ123' : (hitWords.length ? 'live:AMZ123' : '未收录'),
       country, flag, count: merged.length, liveCount: merged.length,
       keywords: merged, trends: [], items: merged,
@@ -297,7 +298,7 @@ async function handle({ request }) {
   // 热搜词榜：live 热销词优先，KW_FLOOR 按日期轮换补齐到 6
   const kwFloor = KW_FLOOR[country] || [];
   const kwRot = rotateFloor(kwFloor, doy, kwFloor.length, jitter)
-    .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）', viralPoint: '买家真实搜索词：' + w, platform: '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
+    .map((w, i) => ({ id: 'kwf-' + country + '-' + i, name: w, country, flag, category: '热搜词榜', heatLevel: '中', reason: (country === '泰国' ? '泰国站本地热搜词池（泰语买家真实搜索习惯，来源：Shopee/Lazada泰国站热搜）' : country === '韩国' ? '韩国站本地热搜词池（韩语买家真实搜索习惯词）' : '亚马逊后台ABA品牌分析·' + country + '站TOP搜索词榜（本地榜单，联网恢复后自动切换实时）'), viralPoint: '买家真实搜索词：' + w, platform: country === '泰国' ? 'Shopee/Lazada' : '亚马逊', seasonTrend: '本周热搜', cargoTags: '热搜词', live: false }));
   const keywords = [];
   for (const it of kwLive) { if (keywords.length >= 6) break; keywords.push(it); }
   for (const it of kwRot) { if (keywords.length >= 6) break; keywords.push(it); }
