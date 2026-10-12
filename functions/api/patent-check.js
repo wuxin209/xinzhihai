@@ -1622,7 +1622,7 @@ async function runCheck(keywords) {
     riskReason: risk.reason,
     patents,
     trademarkWarnings: news,
-    tro: tro.ok ? { checked: true, total: tro.total, hits: tro.hits.slice(0, 8), updated: tro.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
+    tro: tro.ok ? { checked: true, total: tro.total, hits: tro.hits.slice(0, 8), updated: tro.updated || '', debug: tro.debug || [] } : { checked: false, total: 0, hits: [], updated: '', debug: [] },
     sellerDefense: sdCases.ok ? { checked: true, total: sdCases.total, hits: sdCases.hits.slice(0, 6), updated: sdCases.updated || '' } : { checked: false, total: 0, hits: [], updated: '' },
     brandLibrary: brandLib,
     teamDb: { checked: true, total: TEAM_DB.length, hits: teamHits },
