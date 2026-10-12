@@ -1,4 +1,4 @@
-import { getDeepSeekKey } from './_config.js';
+import { getDeepSeekKey, getVolcanoKey, getVolcanoEp } from './_config.js';
 
 const TPL = {
   '家居': { kw: '家居收纳 厨房神器 居家好物', points: ['材质厚实做工精细，质感满满','安装简单5分钟搞定','实用又好看，朋友来都问链接','性价比超高，同价位首选','细节到位设计贴心'] },
@@ -19,6 +19,19 @@ async function callDeepSeek(apiKey, messages) {
     signal: AbortSignal.timeout(20000)
   });
   if (!resp.ok) throw new Error('DeepSeek error: ' + resp.status);
+  const data = await resp.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// 火山方舟（OpenAI 兼容端点）：用户已充值的主 AI 源
+async function callVolcano(apiKey, ep, messages) {
+  const resp = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({ model: ep, messages, temperature: 0.7, max_tokens: 2000 }),
+    signal: AbortSignal.timeout(25000)
+  });
+  if (!resp.ok) throw new Error('Volcano error: ' + resp.status);
   const data = await resp.json();
   return data.choices?.[0]?.message?.content || '';
 }
@@ -73,26 +86,32 @@ export async function onRequestPost(context) {
     const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
     const isCoupang = site.includes('酷胖') || site.includes('Coupang');
     const siteName = isCoupang ? 'Coupang' : isTiktok ? 'TikTok Shop' : 'Amazon';
-    const apiKey = getDeepSeekKey(context.env);
+    // AI 源：优先火山方舟（用户已充值），DeepSeek 兜底
+    const volcKey = getVolcanoKey(context.env);
+    const volcEp = getVolcanoEp(context.env);
+    const dsKey = getDeepSeekKey(context.env);
+    let aiCall = null;
+    if (volcKey && volcEp) aiCall = (msgs) => callVolcano(volcKey, volcEp, msgs);
+    else if (dsKey) aiCall = (msgs) => callDeepSeek(dsKey, msgs);
 
     let aiResult;
-    if (apiKey) {
+    if (aiCall) {
       try {
         if (isTiktok) {
           const prompt = '你是跨境电商TikTok短视频运营专家。为产品"' + product + '"（类目：' + category + '，站点：' + site + '，核心卖点：' + (sellingPoints || '无') + '）创作带货脚本。硬性要求：1) 口播必须全程紧扣产品本身：开头3秒用产品名+痛点钩子，中段自然说出2-3个具体卖点（优先用提供的卖点原话，没有则按品类常识展开），结尾用价格/优惠/小黄车引导转化，禁止"家人们真的绝了""太好用了"这类空泛套话；2) storyboard 每段shot写具体拍摄画面（产品特写/使用场景/对比演示），line必须是能直接念的完整台词；3) 标题20字内要带产品名或品类词。严格按JSON返回（不要markdown）：{"tiktokTitle":"标题","script30s":"30秒口播","script60s":"60秒口播","storyboard":[{"time":"0-3s","shot":"画面","line":"台词"},{"time":"3-15s","shot":"画面","line":"台词"},{"time":"15-30s","shot":"画面","line":"台词"},{"time":"30-45s","shot":"画面","line":"台词"},{"time":"45-60s","shot":"画面","line":"台词"}],"hashtags":["#标签"]}';
-          const content = await callDeepSeek(apiKey, [{role:'user',content:prompt}]);
+          const content = await aiCall([{role:'user',content:prompt}]);
           const jsonStr = content.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
           aiResult = JSON.parse(jsonStr);
-          aiResult.source = 'deepseek'; aiResult.siteType = 'tiktok';
+          aiResult.source = 'ai'; aiResult.siteType = 'tiktok';
           aiResult.titles = [aiResult.tiktokTitle];
           aiResult.fivePoints = (TPL[category]||TPL['其他']).points;
           aiResult.description = aiResult.script60s;
         } else {
           const prompt = '你是跨境电商' + siteName + ' Listing优化专家。为产品"' + product + '"（类目：' + category + '，核心卖点：' + (sellingPoints || '无') + '）生成Listing。硬性要求：1) 标题必须埋入"品类词+核心卖点词+适用人群/场景"，150字符内，读起来自然不堆砌；2) bulletPoints 每条必须具体可感知（材质/尺寸/功能/使用场景/效果），优先把提供的卖点原话改写成英文表达，禁止空泛形容词堆砌；3) searchTerms 填后台搜索词：品类词+卖点词+同义词+场景词，空格分隔，不含品牌名；4) description 用HTML段落（A+风格），把卖点和场景写成交付给顾客的完整介绍。严格按JSON返回（不要markdown）：{"amazonTitle":"标题","bulletPoints":["五点1","五点2","五点3","五点4","五点5"],"description":"HTML描述","searchTerms":"后台搜索词"}';
-          const content = await callDeepSeek(apiKey, [{role:'user',content:prompt}]);
+          const content = await aiCall([{role:'user',content:prompt}]);
           const jsonStr = content.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
           aiResult = JSON.parse(jsonStr);
-          aiResult.source = 'deepseek'; aiResult.siteType = 'amazon';
+          aiResult.source = 'ai'; aiResult.siteType = 'amazon';
           aiResult.titles = [aiResult.amazonTitle];
           aiResult.fivePoints = aiResult.bulletPoints;
           aiResult.script30s = 'Introducing ' + product + '. ' + (aiResult.bulletPoints?.slice(0,2).join(' ') || '');
