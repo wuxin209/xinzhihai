@@ -44,7 +44,7 @@ function normTitle(t) {
 }
 
 // ===== 关键词分类器：先排新闻/企业动态特征，再判技巧类 =====
-const NEWS_WORDS = ['大促', '定档', '旺季', '会员日', '新政', '政策', '法规', '海关', '认证', '关税', '峰会', '大会', '论坛', '报名', '榜单', '报告', '发布', '数据', '统计', '战报', '黑五', '网一', 'prime', '招商', '活动', '倒计时', '预告', '官宣', '获奖', '融资', '收购', '上市', '启用', '开设', '部署', '上线', '合作', '推出', '宣布', '任命', '岗位', '创造', '新增', '设施', '中心', '机器人', '投资', '扩建', '达成', '签署', '公布', '亮相', '招聘', '裁员', '总部', '配送', '仓库', '履约', '市场', '份额', '营收', '利润', '增长', '下滑', '同比', '环比', '里程碑', '正式', '联合', '助力', '提速', '实现', '推出新', '计划', '拟'];
+const NEWS_WORDS = ['大促', '定档', '旺季', '会员日', '新政', '政策', '法规', '海关', '认证', '关税', '峰会', '大会', '论坛', '报名', '榜单', '报告', '发布', '数据', '统计', '战报', '黑五', '网一', 'prime', '招商', '活动', '倒计时', '预告', '官宣', '获奖', '融资', '收购', '上市', '启用', '开设', '部署', '上线', '合作', '推出', '宣布', '任命', '岗位', '创造', '新增', '设施', '中心', '机器人', '投资', '扩建', '达成', '签署', '公布', '亮相', '招聘', '裁员', '总部', '配送', '仓库', '履约', '市场', '份额', '营收', '利润', '增长', '下滑', '同比', '环比', '里程碑', '正式', '联合', '助力', '提速', '实现', '推出新', '拟'];
 const TIP_WORDS = ['技巧', '方法', '实操', '避坑', '攻略', '案例', '拆解', '复盘', '指南', '教程', '打法', '策略', '工具', '选品', '广告', 'listing', '优化', '爆单', '测评', '干货', '经验', '套路', '排查', '申诉', '关键词', '转化', '流量', 'seo', 'tiktok', '亚马逊', '跨境', 'shopee', '物流', '仓储', 'fba', '海外仓', '店铺', '运营', '直播', '短视频', '内容', '素材', '红人', '达人', '冷启动', '测款', '跟卖', 'review', '评论', '退货', '仓储费', '补货', '断货', '利润', '定价', 'roi', 'acos', 'ppc', '投流', '矩阵', '起号', '养号', '封号', '风控', '合规', '侵权', 'tro', '专利', '商标'];
 const AI_WORDS = ['ai', '人工智能', 'chatgpt', 'gpt', 'deepseek', 'claude', 'midjourney', 'sd ', '提示词', 'prompt', '生成', '模型', '智能体', 'agent', '自动化', 'aigc', '数字人', '大模型', 'ai绘画', 'ai视频', 'ai文案', 'ai工具', 'ai效率', 'ai写作', 'ai设计', 'ai客服', 'ai搜索', 'ai内容', 'ai生成', 'ai驱动', 'ai辅助', 'ai运营', 'ai选品', 'ai作图', 'ai素材', 'ai剪辑'];
 
@@ -62,39 +62,23 @@ function classifyTitle(title) {
   return 'news';
 }
 
-// ===== 抓取源解析 =====
-function parseAmz123(html) {
+// ===== 抓取源解析：AMZ123 / TT123 问答干货板块 =====
+// 结构：<a href="/ask/xxx"><div class="ask-info-title">干货标题</div></a>（两站同模板）
+function parseAsks(html, source, host) {
   const out = [];
   const seen = new Set();
-  const re = /<a[^>]*href="https?:\/\/www\.amz123\.com\/t\/[A-Za-z0-9]+"[^>]*>/g;
+  const re = /class="ask-info-title"[^>]*>\s*([^<]{6,90})\s*<\/div>/g;
   let m;
   while ((m = re.exec(html)) !== null) {
-    const tag = m[0];
-    const tm = tag.match(/title="([^"]+)"/) || tag.match(/data-sdk-resource-id="([^"]+)"/);
-    let title = tm ? decodeEntities(tm[1]) : '';
+    let title = decodeEntities(m[1]).trim();
     if (!title || title.length < 8 || seen.has(title)) continue;
+    // 过滤明显的纯符号/纯英文无效标题
+    if (!/[\u4e00-\u9fa5a-zA-Z]/.test(title)) continue;
     seen.add(title);
-    const url = tag.match(/href="([^"]+)"/)[1];
-    out.push({ title, source: 'AMZ123', url, date: todayCN() });
+    const url = host + '/asks';
+    out.push({ title, source, url, date: todayCN() });
   }
   return out.slice(0, 18);
-}
-
-function parseTt123(html) {
-  const out = [];
-  const seen = new Set();
-  const re = /<a[^>]*href="https?:\/\/www\.tt123\.com\/t\/[A-Za-z0-9]+"[^>]*>/g;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const tag = m[0];
-    const tm = tag.match(/title="([^"]+)"/);
-    let title = tm ? decodeEntities(tm[1]) : '';
-    if (!title || title.length < 8 || seen.has(title)) continue;
-    seen.add(title);
-    const url = tag.match(/href="([^"]+)"/)[1];
-    out.push({ title, source: 'TT123', url, date: todayCN() });
-  }
-  return out.slice(0, 14);
 }
 
 // ===== GitHub 读写 content-tips.json =====
@@ -173,14 +157,14 @@ export async function onRequestPost(context) {
   };
   const jobs = [
     { name: 'amz123', fn: async () => {
-      const r = await fetch('https://www.amz123.com/zb', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(6000) });
+      const r = await fetch('https://www.amz123.com/asks', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(7000) });
       if (!r.ok) throw new Error('amz123 ' + r.status);
-      return parseAmz123(await r.text());
+      return parseAsks(await r.text(), 'AMZ123', 'https://www.amz123.com');
     } },
     { name: 'tt123', fn: async () => {
-      const r = await fetch('https://www.tt123.com/', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(6000) });
+      const r = await fetch('https://www.tt123.com/asks', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(7000) });
       if (!r.ok) throw new Error('tt123 ' + r.status);
-      return parseTt123(await r.text());
+      return parseAsks(await r.text(), 'TT123', 'https://www.tt123.com');
     } }
   ];
   const settled = await Promise.allSettled(jobs.map((j) => j.fn().then((list) => push(list))));
