@@ -152,17 +152,11 @@ export async function onRequestGet(context) {
   return new Response(JSON.stringify({ ok: true, total: items.length, items: recent, fetchedAt: new Date().toISOString() }), cors({}));
 }
 
-// POST /run：一键自运行 抓取 → 分类 → 去重 → 入库
+// POST：一键自运行「抓取 → 分类 → 去重 → 入库」（前端直接 POST /api/content/fresh 触发）
 export async function onRequestPost(context) {
   const { env } = context;
-  const url = new URL(context.request.url);
-  const isRun = url.pathname.endsWith('/run') || url.searchParams.get('run') === '1';
 
-  if (!isRun) {
-    return new Response(JSON.stringify({ ok: false, error: '请使用 /api/content/fresh/run 触发保鲜管道' }), cors({ status: 400 }));
-  }
-
-  // 1) 抓取候选
+  // 1) 抓取候选（并行双源，各自 6s 超时，整体限时兜底）
   const raw = [];
   const seenRaw = new Set();
   const push = (list) => {
@@ -175,12 +169,12 @@ export async function onRequestPost(context) {
   };
   const jobs = [
     { name: 'amz123', fn: async () => {
-      const r = await fetch('https://www.amz123.com/zb', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(9000) });
+      const r = await fetch('https://www.amz123.com/zb', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(6000) });
       if (!r.ok) throw new Error('amz123 ' + r.status);
       return parseAmz123(await r.text());
     } },
     { name: 'tt123', fn: async () => {
-      const r = await fetch('https://www.tt123.com/', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(9000) });
+      const r = await fetch('https://www.tt123.com/', { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: timeoutSignal(6000) });
       if (!r.ok) throw new Error('tt123 ' + r.status);
       return parseTt123(await r.text());
     } }
