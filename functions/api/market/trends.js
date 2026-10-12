@@ -312,12 +312,13 @@ async function handle({ request, waitUntil }) {
   const pTrade = (async () => {
     const topUrl = AMZ123_TOP[country];
     if (!topUrl) return;
-    const top = await fetchText(topUrl, 2000).then(h => parseTopWords(h, 160)).catch(() => []);
+    const top = await fetchText(topUrl, refresh ? 8000 : 2000).then(h => parseTopWords(h, 160)).catch(() => []);
     if (top.length) { const before = kwLive.length; top.slice(0, 160).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
   })().catch(() => {});
   let pDone = false;
   pTrade.then(() => { pDone = true; }).catch(() => {});
-  await Promise.race([pTrade, new Promise(r => setTimeout(r, 2000))]);
+  const waitMs = refresh ? 9000 : 2000; // 主动刷新最多等 9s 拿实时；默认浏览 2s 内必返回
+  await Promise.race([pTrade, new Promise(r => setTimeout(r, waitMs))]);
   if (pDone) {
     const r = build(kwLive, live, sources);
     store(r, kwLive.length || live.length);
@@ -325,7 +326,7 @@ async function handle({ request, waitUntil }) {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
     });
   }
-  // 2s 内抓取未完成：返回本地池（pTrade 的 fetch 有 2s AbortController 兜底，不会拖死）
+  // 等待时间内抓取未完成：返回本地池（pTrade 的 fetch 有独立 AbortController 兜底，不会拖死）
   return new Response(JSON.stringify(localResult), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
   });
