@@ -213,7 +213,7 @@ async function queryTRO(kws) {
     hits.push(h);
   }
   if (api.updated > updated) updated = api.updated;
-  return { ok: true, hits, total: Math.max(cases.length, api.total, hits.length), updated };
+  return { ok: true, hits, total: Math.max(cases.length, api.total, hits.length), updated, debug: api.debug };
 }
 
 // ============ TRO 案件源1b：123tro 官方 API（admin.123tro.com/front/api，全库品牌直查） ============
