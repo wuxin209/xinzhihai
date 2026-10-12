@@ -200,9 +200,21 @@ export async function onRequestPost(context) {
     });
   }
 
+  // 4) 每月扩容上限：运营技巧 / AI技巧 合计最多入库 5 条（两类均衡，宁缺毋滥）
+  const ADD_CAP = 5;
+  const op = fresh.filter((it) => it.category === '运营技巧');
+  const ai = fresh.filter((it) => it.category === 'AI技巧');
+  const picked = [];
+  picked.push(...op.splice(0, 3), ...ai.splice(0, 2));
+  if (picked.length < ADD_CAP) {
+    picked.push(...op.splice(0, ADD_CAP - picked.length), ...ai.splice(0, ADD_CAP - picked.length));
+  }
+  const toAdd = picked.slice(0, ADD_CAP);
+  const capped = fresh.length - toAdd.length;
+
   let saved = false;
-  if (fresh.length > 0) {
-    const merged = fresh.concat(items).slice(0, 400); // 库上限400条，最新在前
+  if (toAdd.length > 0) {
+    const merged = toAdd.concat(items).slice(0, 400); // 库上限400条，最新在前
     saved = await writeTips(env, merged, sha);
   }
 
@@ -210,10 +222,12 @@ export async function onRequestPost(context) {
     ok: true,
     fetched: raw.length,
     classified: tips.length,
-    added: fresh.length,
+    added: toAdd.length,
+    cap: ADD_CAP,
+    capped,
     skipped: skipped.length,
     saved,
-    items: fresh.slice(0, 20),
+    items: toAdd.slice(0, 5),
     failed,
     fetchedAt: new Date().toISOString()
   }), cors({}));
