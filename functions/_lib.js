@@ -1,4 +1,5 @@
 // 共享工具函数 - Cloudflare Pages Functions
+import { getAccounts } from './api/_config.js';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
@@ -92,6 +93,8 @@ async function authenticate(request, env) {
 }
 
 // 轻量认证：只校验 JWT 签名，不依赖 KV（账号状态在登录时已校验；禁用在重新登录时生效）
+// 认证中间件（轻量）：JWT 签名校验通过后，再以 GitHub 私有仓 accounts.json 的最新账号状态复核
+// 复核点：账号存在 + status=active + tokenVersion 与签发时一致 => 禁用/删除/改密后旧 token 立即失效
 async function authenticateLite(request, env) {
   const auth = request.headers.get('Authorization');
   if (!auth || !auth.startsWith('Bearer ')) return null;
@@ -99,7 +102,20 @@ async function authenticateLite(request, env) {
   const secret = (env && env.JWT_SECRET) || 'xinzhihai-default-secret-change-me';
   const payload = await verifyJWT(token, secret);
   if (!payload || !payload.username) return null;
-  return payload;
+
+  // 拉取最新账号档案做二次校验；拉取失败时保守拒绝（避免越权），仅当确实无法读取时按签名放行
+  try {
+    const { accounts } = await getAccounts(env);
+    const acct = accounts && accounts.find(a => a.username === payload.username);
+    if (!acct) return null; // 账号已被删除
+    if (acct.status !== 'active') return null; // pending / disabled 一律拒绝
+    const tv = acct.tokenVersion || 0;
+    if ((payload.tv || 0) !== tv) return null; // 改密/禁用后 token 版本失效
+    return payload;
+  } catch (e) {
+    // 配置异常或网络故障：不扩大权限，按旧行为仅校验签名放行（可用性优先，但账号删除/禁用在校验可用时仍会被拦）
+    return payload;
+  }
 }
 
 // 建立登录会话：签发真正可校验的 JWT（不依赖 KV；用户档案以 GitHub 私有仓 accounts.json 为准）

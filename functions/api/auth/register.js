@@ -1,6 +1,5 @@
-// 注册接口 - 数据存入GitHub私有仓库
+// 注册接口 - 数据存入GitHub私有仓库（注册后需主账号审批，审批通过才能登录）
 import { getAccounts, saveAccounts, hashPassword, corsHeaders } from '../_config.js';
-import { createSession } from '../../_lib.js';
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: corsHeaders });
@@ -34,7 +33,7 @@ export async function onRequestPost(context) {
       role: 'user',
       createdAt: new Date().toISOString(),
       lastLogin: null,
-      status: 'active'
+      status: 'pending' // 待主账号审批，审批通过后置为 active 才可登录
     };
 
     accounts.push(newAccount);
@@ -44,13 +43,13 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: '注册失败，请稍后重试' }), { status: 500, headers: corsHeaders });
     }
 
-    const token = await createSession(context.env, newAccount);
+    // 注册成功不签发登录态，等待主账号在「团队管理」中审批通过
     return new Response(JSON.stringify({
       success: true,
-      token,
       username,
       role: 'user',
-      message: '注册成功'
+      status: 'pending',
+      message: '注册成功，等待主账号审批通过后即可登录'
     }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
