@@ -48,12 +48,16 @@ const NEWS_WORDS = ['大促', '定档', '旺季', '会员日', '新政', '政策
 const TIP_WORDS = ['技巧', '方法', '实操', '避坑', '攻略', '案例', '拆解', '复盘', '指南', '教程', '打法', '策略', '工具', '选品', '广告', 'listing', '优化', '爆单', '测评', '干货', '经验', '套路', '排查', '申诉', '关键词', '转化', '流量', 'seo', 'tiktok', '亚马逊', '跨境', 'shopee', '物流', '仓储', 'fba', '海外仓', '店铺', '运营', '直播', '短视频', '内容', '素材', '红人', '达人', '冷启动', '测款', '跟卖', 'review', '评论', '退货', '仓储费', '补货', '断货', '利润', '定价', 'roi', 'acos', 'ppc', '投流', '矩阵', '起号', '养号', '封号', '风控', '合规', '侵权', 'tro', '专利', '商标'];
 const AI_WORDS = ['ai', '人工智能', 'chatgpt', 'gpt', 'deepseek', 'claude', 'midjourney', 'sd ', '提示词', 'prompt', '生成', '模型', '智能体', 'agent', '自动化', 'aigc', '数字人', '大模型', 'ai绘画', 'ai视频', 'ai文案', 'ai工具', 'ai效率', 'ai写作', 'ai设计', 'ai客服', 'ai搜索', 'ai内容', 'ai生成', 'ai驱动', 'ai辅助', 'ai运营', 'ai选品', 'ai作图', 'ai素材', 'ai剪辑'];
 
+const AI_APP_WORDS = ['ai绘画', 'ai视频', 'ai文案', 'ai工具', 'ai效率', 'ai写作', 'ai设计', 'ai客服', 'ai搜索', 'ai内容', 'ai生成', 'ai驱动', 'ai辅助', 'ai运营', 'ai选品', 'ai作图', 'ai素材', 'ai剪辑', '提示词', 'prompt', '教程', '技巧', '玩法', '实操', '指南', '避坑', '攻略', '工具', '效率', '降本', '提效', '自动化', '数字人', '智能体'];
+
 function classifyTitle(title) {
   const t = String(title || '').toLowerCase();
   if (NEWS_WORDS.some((w) => t.includes(w))) return 'news';
-  const isAi = AI_WORDS.some((w) => t.includes(w));
+  // AI 技巧：命中 AI 特征词，且必须是「应用/操作向」标题（行业新闻类 AI 文章不算）
+  if (AI_WORDS.some((w) => t.includes(w))) {
+    return AI_APP_WORDS.some((w) => t.includes(w)) ? 'ai-tip' : 'news';
+  }
   const isTip = TIP_WORDS.some((w) => t.includes(w));
-  if (isAi) return 'ai-tip';
   if (isTip) return 'op-tip';
   return 'news';
 }
