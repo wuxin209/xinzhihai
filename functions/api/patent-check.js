@@ -192,8 +192,10 @@ function parseTRO(html) {
 async function queryTRO(kws) {
   // 单次抓取（≤9s），避免重试链拖慢整体；源通常 2-4s 返回
   const html = await fetchText('http://www.123tro.com/', 7000, { 'Referer': 'http://www.123tro.com/', 'Accept': 'text/html,*/*' });
-  if (!html || html.includes('502 Bad Gateway')) return { ok: false, hits: [], total: 0, updated: '' };
-  const cases = parseTRO(html);
+  // 首页抓取失败不早退：仍走官方 API 历史源兜底
+  let cases = [];
+  let homeOk = false;
+  if (html && !html.includes('502 Bad Gateway')) { cases = parseTRO(html); homeOk = true; }
   const hits = cases.filter(c => {
     const blob = (c.title + ' ' + c.brand + ' ' + c.caseNumber).toLowerCase();
     return kws.some(k => {
@@ -213,7 +215,8 @@ async function queryTRO(kws) {
     hits.push(h);
   }
   if (api.updated > updated) updated = api.updated;
-  return { ok: true, hits, total: Math.max(cases.length, api.total, hits.length), updated, debug: api.debug };
+  const ok = homeOk || api.total > 0;
+  return { ok, hits, total: Math.max(cases.length, api.total, hits.length), updated, debug: api.debug };
 }
 
 // ============ TRO 案件源1b：123tro 官方 API（admin.123tro.com/front/api，全库品牌直查） ============
