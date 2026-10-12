@@ -223,7 +223,7 @@ async function queryTROAPI(kws) {
   const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 2).map(async k => {
     const q = encodeURIComponent(k.trim());
     const url = 'https://admin.123tro.com/front/api/pacerCase/pageList?brandName=' + q + '&pageNo=1&pageSize=20';
-    const txt = await fetchText(url, 6000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList' });
+    const txt = await fetchText(url, 10000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList', 'Origin': 'https://123tro.com' });
     if (!txt) return [];
     try {
       const d = JSON.parse(txt);
