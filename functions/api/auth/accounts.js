@@ -15,6 +15,7 @@ export async function onRequestGet(context) {
     const { accounts } = await getAccounts(context.env);
     // 不返回密码哈希
     const safeAccounts = accounts.map(a => ({
+      id: a.id || a.username,
       username: a.username,
       role: a.role || 'user',
       createdAt: a.createdAt,
@@ -73,6 +74,7 @@ export async function onRequestPost(context) {
 
     await saveAccounts(context.env, accounts, sha);
     const safeAccounts = accounts.map(a => ({
+      id: a.id || a.username,
       username: a.username, role: a.role || 'user',
       createdAt: a.createdAt, lastLogin: a.lastLogin, status: a.status || 'active'
     }));
