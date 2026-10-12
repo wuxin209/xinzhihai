@@ -412,7 +412,7 @@ const TEAM_DB = [
   { kw: 'monster energy', src: '中奖词库', note: '鬼爪' }, { kw: 'harley-davidson', src: '中奖词库', note: '哈雷·戴维森' },
   { kw: 'ray-ban', src: '中奖词库', note: '雷朋' }, { kw: 'oakley', src: '中奖词库', note: '欧克利' },
   { kw: 'costa del mar', src: '中奖词库', note: '眼镜' }, { kw: 'givenchy', src: '中奖词库', note: '纪梵希' },
-  { kw: 'tiffany', src: '中奖词库', note: '蒂芙尼' }, { kw: 'dior', src: '中奖词库' }, { kw: 'loewe', src: '中奖词库', note: '罗意威' },
+  { kw: 'tiffany', src: '中奖词库', note: '蒂芙尼' }, { kw: 'dior', src: '中奖词库' }, { kw: '(g)i-dle', src: '中奖词库', note: '(G)I-DLE 韩团' }, { kw: 'gidle', src: '中奖词库', note: '(G)I-DLE 韩团' }, { kw: 'loewe', src: '中奖词库', note: '罗意威' },
   { kw: 'marc jacobs', src: '中奖词库', note: '马克雅可布' }, { kw: 'goyard', src: '中奖词库', note: '高雅德' },
   { kw: 'kaws', src: '侵权图库', note: '街头艺术品牌（只要有KAWS全部删除）' }, { kw: 'audi', src: '侵权图库', note: '奥迪' },
   { kw: "jack daniel's", src: '侵权图库', note: '杰克丹尼尔' }, { kw: 'fox racing', src: '侵权图库', note: '狐狸头' },
