@@ -218,17 +218,23 @@ async function queryTRO(kws) {
 
 // ============ TRO 案件源1b：123tro 官方 API（admin.123tro.com/front/api，全库品牌直查） ============
 async function queryTROAPI(kws) {
-  const out = { ok: true, hits: [], total: 0, updated: '' };
-  // 前 2 个关键词并发直查（每词 ≤6s），命中即结构化案件
+  const out = { ok: true, hits: [], total: 0, updated: '', debug: [] };
+  // 前 2 个关键词并发直查（每词 ≤10s），命中即结构化案件；失败自动降级到 123tro 主域 SSR 详情路由探测
   const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 2).map(async k => {
     const q = encodeURIComponent(k.trim());
     const url = 'https://admin.123tro.com/front/api/pacerCase/pageList?brandName=' + q + '&pageNo=1&pageSize=20';
-    const txt = await fetchText(url, 10000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList', 'Origin': 'https://123tro.com' });
-    if (!txt) return [];
+    let txt = '';
+    try {
+      txt = await fetchText(url, 10000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList', 'Origin': 'https://123tro.com' });
+    } catch (e) { out.debug.push({ url, err: String(e).slice(0, 120) }); }
+    if (!txt) {
+      out.debug.push({ url, status: 'empty-or-rejected', len: 0 });
+      return [];
+    }
     try {
       const d = JSON.parse(txt);
       return (d && d.data && d.data.lists) || [];
-    } catch { return []; }
+    } catch (e) { out.debug.push({ url, status: 'bad-json', len: txt.length, head: txt.slice(0, 80) }); return []; }
   });
   const groups = await Promise.all(tasks);
   const seen = new Set();
