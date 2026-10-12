@@ -29,7 +29,7 @@ async function callVolcano(apiKey, ep, messages) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
     body: JSON.stringify({ model: ep, messages, temperature: 0.7, max_tokens: 2000 }),
-    signal: AbortSignal.timeout(25000)
+    signal: AbortSignal.timeout(8000)
   });
   if (!resp.ok) throw new Error('Volcano error: ' + resp.status);
   const data = await resp.json();
