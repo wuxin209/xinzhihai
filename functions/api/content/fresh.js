@@ -168,12 +168,51 @@ function cors(respInit) {
   return Object.assign({}, respInit, { headers: Object.assign({}, CORS, respInit.headers || {}) });
 }
 
-// GET：查看当前已入库保鲜内容（供面板展示最近条目）
+// ===== 整合排版：按 运营技巧/AI技巧 → 标签 分组，生成规整文本 =====
+function buildGrouped(list) {
+  const groups = { 运营技巧: {}, AI技巧: {} };
+  for (const it of list) {
+    const c = it.category === 'AI技巧' ? 'AI技巧' : '运营技巧';
+    const t = it.tag || '未分类';
+    (groups[c][t] = groups[c][t] || []).push(it);
+  }
+  return groups;
+}
+
+function buildFormatted(list) {
+  const groups = buildGrouped(list);
+  const lines = [];
+  for (const c of ['运营技巧', 'AI技巧']) {
+    const tags = groups[c];
+    const keys = Object.keys(tags);
+    if (!keys.length) continue;
+    lines.push(`📌【${c}】`);
+    let n = 1;
+    for (const t of keys) {
+      lines.push(`  🔖 ${t}（${tags[t].length}条）`);
+      for (const it of tags[t]) {
+        lines.push(`    ${String(n).padStart(2, ' ')}. ${it.title}｜来源：${it.source}${it.date ? '｜' + String(it.date).slice(5) : ''}`);
+        n++;
+      }
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+// GET：查看当前已入库保鲜内容（按标签分组 + 整合排版输出）
 export async function onRequestGet(context) {
   const { env } = context;
   const { items } = await readTips(env);
   const recent = items.slice(0, 30);
-  return new Response(JSON.stringify({ ok: true, total: items.length, items: recent, fetchedAt: new Date().toISOString() }), cors({}));
+  return new Response(JSON.stringify({
+    ok: true,
+    total: items.length,
+    grouped: buildGrouped(recent),
+    formatted: buildFormatted(recent),
+    items: recent,
+    fetchedAt: new Date().toISOString()
+  }), cors({}));
 }
 
 // POST：一键自运行「抓取 → 分类 → 去重 → 入库」（前端直接 POST /api/content/fresh 触发）
@@ -265,6 +304,7 @@ export async function onRequestPost(context) {
     skipped: skipped.length,
     saved,
     items: toAdd.slice(0, 5),
+    formatted: buildFormatted((toAdd.concat(items)).slice(0, 30)),
     failed,
     fetchedAt: new Date().toISOString()
   }), cors({}));
