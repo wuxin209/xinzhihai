@@ -86,13 +86,13 @@ export async function onRequestPost(context) {
     const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
     const isCoupang = site.includes('酷胖') || site.includes('Coupang');
     const siteName = isCoupang ? 'Coupang' : isTiktok ? 'TikTok Shop' : 'Amazon';
-    // AI 源：优先火山方舟（用户已充值），DeepSeek 兜底
+    // AI 源：DeepSeek 优先（CF 侧可达），火山方舟兜底（CF 侧不可达仅保留备选）
     const volcKey = getVolcanoKey(context.env);
     const volcEp = getVolcanoEp(context.env);
     const dsKey = getDeepSeekKey(context.env);
     let aiCall = null;
-    if (volcKey && volcEp) aiCall = (msgs) => callVolcano(volcKey, volcEp, msgs);
-    else if (dsKey) aiCall = (msgs) => callDeepSeek(dsKey, msgs);
+    if (dsKey) aiCall = (msgs) => callDeepSeek(dsKey, msgs);
+    else if (volcKey && volcEp) aiCall = (msgs) => callVolcano(volcKey, volcEp, msgs);
 
     let aiResult;
     if (aiCall) {
