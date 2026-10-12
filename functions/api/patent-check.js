@@ -175,7 +175,8 @@ function parseTRO(html) {
     const courtM = win.match(/"([^"]{2,16}地方法院[^"]*)"/);
     const courtIdM = win.match(/"(([a-z]{2,5})-1:\d{4}-cv-)/);
     const titleM = win.match(/"([^"]{3,200}? v\. [^"]{0,100}?)"/);
-    const brandM = win.match(/"([^"]{2,34}?[\u4e00-\u9fff][^"]{0,34})"/);
+    // 品牌字段：123tro 内嵌 JSON 中为 "B数字","品牌名" 结构；旧正则误取窗口内首个中文字段（法院名），导致 NISSAN/Steal a Brainrot 等案件漏检
+    const brandM = win.match(/"B\d+","([^"]+)"/) || win.match(/"([^"]{2,34}?[\u4e00-\u9fff][^"]{0,34})"/);
     const dateM = win.match(/"(\d{4}-\d{2}-\d{2})"/);
     cases.push({
       caseNumber: cn,
