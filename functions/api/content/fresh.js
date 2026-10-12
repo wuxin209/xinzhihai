@@ -94,7 +94,10 @@ async function readTips(env) {
       return { items: [], sha: null, error: 'HTTP ' + resp.status };
     }
     const data = await resp.json();
-    const content = JSON.parse(atob(data.content));
+    // 正确解码：GitHub base64 内容是 UTF-8 字节，必须按 UTF-8 解码后再 JSON.parse，
+    // 否则中文标题会变成 mojibake 乱码（此前 atob 直接 parse 导致的乱码根源）
+    const bytes = Uint8Array.from(atob(data.content), (c) => c.charCodeAt(0));
+    const content = JSON.parse(new TextDecoder().decode(bytes));
     return { items: Array.isArray(content.items) ? content.items : [], sha: data.sha };
   } catch (e) {
     return { items: [], sha: null, error: e.message };
