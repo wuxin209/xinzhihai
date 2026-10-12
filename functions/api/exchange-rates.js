@@ -12,20 +12,20 @@ function timeoutSignal(ms) {
 }
 
 // 陈旧硬编码兜底（仅在完全没有成功缓存时使用；已标注 stale，前端应提示）
-const STALE_FALLBACK = { USD: 7.03, CAD: 5.19, AUD: 4.72, JPY: 0.0468, KRW: 0.0052, THB: 0.209 };
+const STALE_FALLBACK = { USD: 7.03, CAD: 5.19, AUD: 4.72, JPY: 0.0468, KRW: 0.0052, THB: 0.209, MYR: 0.60, MXN: 0.36 };
 
 // 从 er-api 结构取数: { rates: { USD: 0.14 } } 表示 1 CNY = 0.14 USD
 function fromErApi(d) {
   const r = d.rates;
   if (!r) throw new Error('er-api no rates');
-  return { date: d.time_last_update_utc ? d.time_last_update_utc.slice(0, 10) : '', rates: { USD: r.USD, CAD: r.CAD, AUD: r.AUD, JPY: r.JPY, KRW: r.KRW, THB: r.THB } };
+  return { date: d.time_last_update_utc ? d.time_last_update_utc.slice(0, 10) : '', rates: { USD: r.USD, CAD: r.CAD, AUD: r.AUD, JPY: r.JPY, KRW: r.KRW, THB: r.THB, MYR: r.MYR, MXN: r.MXN } };
 }
 
 // 从 currency-api 结构取数: { date:'2026-10-08', cny: { usd: 0.14 } }
 function fromCurrencyApi(d) {
   const c = d.cny;
   if (!c) throw new Error('currency-api no cny');
-  return { date: d.date || '', rates: { USD: c.usd, CAD: c.cad, AUD: c.aud, JPY: c.jpy, KRW: c.krw, THB: c.thb } };
+  return { date: d.date || '', rates: { USD: c.usd, CAD: c.cad, AUD: c.aud, JPY: c.jpy, KRW: c.krw, THB: c.thb, MYR: c.myr, MXN: c.mxn } };
 }
 
 function build(rates, date) {
@@ -37,6 +37,8 @@ function build(rates, date) {
   out.JPY = +(1 / rates.JPY).toFixed(6);
   out.KRW = +(1 / rates.KRW).toFixed(6);
   out.THB = +(1 / rates.THB).toFixed(4);
+  out.MYR = +(1 / rates.MYR).toFixed(4);
+  out.MXN = +(1 / rates.MXN).toFixed(4);
   return out;
 }
 
@@ -70,7 +72,7 @@ export async function onRequestGet() {
     if (secondary) {
       // 交叉校验：最大相对偏差
       let maxDev = 0;
-      for (const k of ['USD', 'CAD', 'AUD', 'JPY', 'KRW', 'THB']) {
+      for (const k of ['USD', 'CAD', 'AUD', 'JPY', 'KRW', 'THB', 'MYR', 'MXN']) {
         if (!secondary.rates[k]) continue;
         const a = 1 / primary.rates[k], b = 1 / secondary.rates[k];
         maxDev = Math.max(maxDev, Math.abs(a - b) / a);
@@ -92,7 +94,7 @@ export async function onRequestGet() {
   result.note = '市场中间价，实际结汇以银行现汇买入价为准（通常低0.1%-0.3%）';
   // 兼容前端期望的 {data:{rates:{...}}} 嵌套结构，同时保留扁平字段
   result.data = { rates: {} };
-  for (const k of ['USD', 'CAD', 'THB', 'JPY', 'KRW', 'AUD']) if (result[k] !== undefined) result.data.rates[k] = result[k];
+  for (const k of ['USD', 'CAD', 'THB', 'JPY', 'KRW', 'AUD', 'MYR', 'MXN']) if (result[k] !== undefined) result.data.rates[k] = result[k];
   if (errors.length) result.errors = errors;
   cacheData = result;
   cacheTime = Date.now();
