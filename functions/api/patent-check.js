@@ -204,7 +204,53 @@ async function queryTRO(kws) {
   // 页面内最新的案件日期（尽量找最大日期）
   let updated = '';
   for (const c of cases) if (c.date > updated) updated = c.date;
-  return { ok: true, hits, total: cases.length, updated };
+  // 123tro 官方 API 品牌直查（全库 6706 条历史案件源，覆盖首页 20 条之外的历史 TRO）
+  const api = await queryTROAPI(kws);
+  const seenCn = new Set(hits.map(h => h.caseNumber));
+  for (const h of api.hits) {
+    if (seenCn.has(h.caseNumber)) continue;
+    seenCn.add(h.caseNumber);
+    hits.push(h);
+  }
+  if (api.updated > updated) updated = api.updated;
+  return { ok: true, hits, total: Math.max(cases.length, api.total, hits.length), updated };
+}
+
+// ============ TRO 案件源1b：123tro 官方 API（admin.123tro.com/front/api，全库品牌直查） ============
+async function queryTROAPI(kws) {
+  const out = { ok: true, hits: [], total: 0, updated: '' };
+  // 前 2 个关键词并发直查（每词 ≤6s），命中即结构化案件
+  const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 2).map(async k => {
+    const q = encodeURIComponent(k.trim());
+    const url = 'https://admin.123tro.com/front/api/pacerCase/pageList?brandName=' + q + '&pageNo=1&pageSize=20';
+    const txt = await fetchText(url, 6000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList' });
+    if (!txt) return [];
+    try {
+      const d = JSON.parse(txt);
+      return (d && d.data && d.data.lists) || [];
+    } catch { return []; }
+  });
+  const groups = await Promise.all(tasks);
+  const seen = new Set();
+  groups.flat().forEach(c => {
+    const cn = (c && c.webCaseNumber) || '';
+    if (!cn || seen.has(cn)) return;
+    seen.add(cn);
+    out.hits.push({
+      caseNumber: cn,
+      court: (c.courtChineseName || c.courtName || '').slice(0, 60),
+      title: (c.caseTitle || '').slice(0, 140),
+      brand: (c.brandName || '').slice(0, 50),
+      date: (c.dateFiled || ''),
+      firm: (c.lawOfficeName || '').slice(0, 40),
+      url: 'http://www.123tro.com/caseList/detail/' + cn
+    });
+  });
+  out.total = out.hits.length;
+  let dm = '';
+  groups.flat().forEach(c => { if (c.dateFiled && c.dateFiled > dm) dm = c.dateFiled; });
+  if (dm) out.updated = dm;
+  return out;
 }
 
 // ============ TRO 案件源2：SellerDefense API（2849+ 案件库，关键词直查） ============
