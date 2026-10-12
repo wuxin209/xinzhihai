@@ -1,4 +1,5 @@
 import { getVolcanoKey, getVolcanoEp } from './_config.js';
+import { TRO_CASES } from './tro-cases.js';
 // 侵权风险排查接口：联网检索 Google Patents（主）+ Google News 商标/TRO 风险（补）
 // 输入: { keywords: string[] | string, productName?: string }
 // 输出: { risk, patents[], trademarkWarnings[], summary, disclaimer, note?, updated }
@@ -221,43 +222,53 @@ async function queryTRO(kws) {
 
 // ============ TRO 案件源1b：123tro 官方 API（admin.123tro.com/front/api，全库品牌直查） ============
 async function queryTROAPI(kws) {
-  const out = { ok: true, hits: [], total: 0, updated: '', debug: [] };
-  // 前 2 个关键词并发直查（每词 ≤10s），命中即结构化案件；失败自动降级到 123tro 主域 SSR 详情路由探测
-  const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 2).map(async k => {
-    const q = encodeURIComponent(k.trim());
-    const url = 'https://admin.123tro.com/front/api/pacerCase/pageList?brandName=' + q + '&pageNo=1&pageSize=20';
-    let txt = '';
-    try {
-      txt = await fetchText(url, 10000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList', 'Origin': 'https://123tro.com' });
-    } catch (e) { out.debug.push({ url, err: String(e).slice(0, 120) }); }
-    if (!txt) {
-      out.debug.push({ url, status: 'empty-or-rejected', len: 0 });
-      return [];
+  const out = { ok: true, hits: [], total: 0, updated: '', debug: [], fromLocal: true };
+  // ① 本地全库快照匹配（6706 条历史案件，离线稳定，覆盖 335 页全量历史源）
+  const lowerKws = kws.filter(k => k.trim().length >= 2).map(k => k.toLowerCase().trim());
+  if (lowerKws.length) {
+    const seen = new Set();
+    for (const c of TRO_CASES) {
+      const cn = c[0] || '', brand = c[1] || '', firm = c[2] || '', court = c[3] || '', date = c[4] || '';
+      const blob = (brand + ' ' + firm + ' ' + cn).toLowerCase();
+      if (!lowerKws.some(k => blob.includes(k)) || seen.has(cn)) continue;
+      seen.add(cn);
+      out.hits.push({ caseNumber: cn, brand, firm, court, date, url: 'http://www.123tro.com/caseList/detail/' + cn, src: '123tro全库快照' });
+      if (out.hits.length >= 12) break;
     }
-    try {
-      const d = JSON.parse(txt);
-      return (d && d.data && d.data.lists) || [];
-    } catch (e) { out.debug.push({ url, status: 'bad-json', len: txt.length, head: txt.slice(0, 80) }); return []; }
-  });
-  const groups = await Promise.all(tasks);
-  const seen = new Set();
-  groups.flat().forEach(c => {
-    const cn = (c && c.webCaseNumber) || '';
-    if (!cn || seen.has(cn)) return;
-    seen.add(cn);
-    out.hits.push({
-      caseNumber: cn,
-      court: (c.courtChineseName || c.courtName || '').slice(0, 60),
-      title: (c.caseTitle || '').slice(0, 140),
-      brand: (c.brandName || '').slice(0, 50),
-      date: (c.dateFiled || ''),
-      firm: (c.lawOfficeName || '').slice(0, 40),
-      url: 'http://www.123tro.com/caseList/detail/' + cn
+  }
+  // ② 在线增量（best-effort）：admin API 可达时补充最新案件，失败不影响本地命中
+  try {
+    const tasks = kws.slice(0, 2).filter(k => k.trim().length >= 2).map(async k => {
+      const q = encodeURIComponent(k.trim());
+      const url = 'https://admin.123tro.com/front/api/pacerCase/pageList?brandName=' + q + '&pageNo=1&pageSize=20';
+      const txt = await fetchText(url, 10000, { 'Accept': 'application/json', 'Referer': 'https://123tro.com/pc/caseList', 'Origin': 'https://123tro.com' });
+      if (!txt) { out.debug.push({ url, status: 'empty-or-rejected' }); return []; }
+      try {
+        const d = JSON.parse(txt);
+        return (d && d.data && d.data.lists) || [];
+      } catch (e) { out.debug.push({ url, status: 'bad-json' }); return []; }
     });
-  });
+    const groups = await Promise.all(tasks);
+    const seen2 = new Set(out.hits.map(h => h.caseNumber));
+    groups.flat().forEach(c => {
+      const cn = (c && c.webCaseNumber) || '';
+      if (!cn || seen2.has(cn)) return;
+      seen2.add(cn);
+      out.hits.push({
+        caseNumber: cn,
+        court: (c.courtChineseName || c.courtName || '').slice(0, 60),
+        title: (c.caseTitle || '').slice(0, 140),
+        brand: (c.brandName || '').slice(0, 50),
+        date: (c.dateFiled || ''),
+        firm: (c.lawOfficeName || '').slice(0, 40),
+        url: 'http://www.123tro.com/caseList/detail/' + cn,
+        src: '123tro实时'
+      });
+    });
+  } catch (e) { out.debug.push({ err: String(e).slice(0, 120) }); }
   out.total = out.hits.length;
   let dm = '';
-  groups.flat().forEach(c => { if (c.dateFiled && c.dateFiled > dm) dm = c.dateFiled; });
+  out.hits.forEach(h => { if (h.date && h.date > dm) dm = h.date; });
   if (dm) out.updated = dm;
   return out;
 }
