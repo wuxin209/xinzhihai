@@ -312,12 +312,19 @@ async function handle({ request, waitUntil }) {
   const pTrade = (async () => {
     const topUrl = AMZ123_TOP[country];
     if (!topUrl) return;
-    const top = await fetchText(topUrl, refresh ? 8000 : 2000).then(h => parseTopWords(h, 160)).catch(() => []);
+    const top = await fetchText(topUrl, refresh ? 8000 : 8000).then(h => parseTopWords(h, 160)).catch(() => []);
     if (top.length) { const before = kwLive.length; top.slice(0, 160).forEach(t => pushKw(t, 'AMZ123热销词')); if (kwLive.length > before) sources.push('AMZ123热销词'); }
   })().catch(() => {});
   let pDone = false;
   pTrade.then(() => { pDone = true; }).catch(() => {});
-  const waitMs = refresh ? 9000 : 2000; // 主动刷新最多等 9s 拿实时；默认浏览 2s 内必返回
+  if (!refresh) {
+    // 默认浏览：立即返回（缓存命中则上面已返回），后台抓取完成后写 30min 缓存，下次请求即实时
+    pTrade.then(() => { if (kwLive.length) { const r = build(kwLive, live, sources); store(r, true); } }).catch(() => {});
+    return new Response(JSON.stringify(localResult), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, s-maxage=600' }
+    });
+  }
+  const waitMs = 9000; // 主动刷新最多等 9s 拿实时
   await Promise.race([pTrade, new Promise(r => setTimeout(r, waitMs))]);
   if (pDone) {
     const r = build(kwLive, live, sources);
