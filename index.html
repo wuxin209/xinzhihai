@@ -1,4 +1,4 @@
-<!-- v265 -->
+<!-- v266 -->
 <!doctype html><html lang="zh-CN"><head><script>(function(){
   var needsPolyfill=(function(){
     try{
@@ -13,17 +13,96 @@
     document.write('<script src="./assets/polyfills.js"><\/script>');
   }
 })();</script><script>window.appId = "app_17bz951msx7";
-    window.userId = "";
+    window.userId = "{{userId}}";
     window.tenantId = "4064320674";
-    window.userName = "";
-    window.csrfToken = "";
+    window.userName = "{{userName}}";
+    window.csrfToken = "{{csrfToken}}";
     window.ENVIRONMENT = "online";
-    window.__BASENAME__ = "/";
+    window.__BASENAME__ = "{{basename}}";
     const appInfo = {
-      name: "鑫之海运营工具箱",
-      avatar: "",
-      description: "跨境电商 · AI 运营 · 全类目透视",
+      name: "{{appName}}",
+      avatar: "{{{appAvatar}}}",
+      description: "{{appDescription}}",
     };
     if (appInfo.name) {
       window._appInfo = appInfo;
-    }</script><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>鑫之海 · 跨境运营工具箱</title><script type="module" crossorigin src="./assets/index-B7Jb7pdG.js"></script><link rel="modulepreload" crossorigin href="./assets/rolldown-runtime-QTnfLwEv.js"><link rel="modulepreload" crossorigin href="./assets/radix-CRsLnWaV.js"><link rel="modulepreload" crossorigin href="./assets/toolkit-C2_jIE7b.js"><link rel="modulepreload" crossorigin href="./assets/card-9nNQrg0U.js"><link rel="stylesheet" crossorigin href="./assets/index-B7tCgCd-.css"><meta property="og:title" content="鑫之海运营工具箱"><meta property="og:description" content="跨境电商 · AI 运营 · 全类目透视"><meta property="og:image" content="./favicon.svg"><meta name="description" content="跨境电商 · AI 运营 · 全类目透视"><link rel="icon" href="./favicon.svg"></head><body><div id="root"></div></body></html>
+    }</script><script>(function(g){
+  if(!window[g]){var q=[];window[g]=function(){q.push([].slice.call(arguments));};window[g].q=q;}
+  window.__slardarErrBuf=window.__slardarErrBuf||[];
+  var ref=document.referrer||'';
+  function _cap(err){
+    if(window[g]&&!window[g].q){
+      window[g]('captureException',err instanceof Error?err:new Error(String(err)),{source:'runtime-error',referrer:ref});
+    }else{
+      (window.__slardarErrBuf=window.__slardarErrBuf||[]).push(err);
+    }
+  }
+  window.addEventListener('error',function(e){
+    if(e.error==null&&e.target instanceof Element){
+      var t=e.target,url=t.src||t.href||'';
+      if(url)window[g]('captureException',new Error('Resource load failed: '+url),{team:'miaoda-sdk',source:'resource-error',resourceType:t.tagName.toLowerCase(),resourceUrl:url,referrer:ref});
+      return;
+    }
+    if(e.error!=null){
+      var err=e.error;
+      if(e.filename&&typeof err.stack==='string'&&err.stack.indexOf(e.filename)<0){
+        try{err.stack+='\n    at '+e.filename+':'+(e.lineno||0)+':'+(e.colno||0);}catch(ex){}
+      }
+      _cap(err);
+    }else{
+      var msg=e.message||'Script error';
+      var err=new Error(msg);
+      if(e.filename)err.stack=msg+'\n    at '+e.filename+':'+(e.lineno||0)+':'+(e.colno||0);
+      _cap(err);
+    }
+  },true);
+  window.addEventListener('unhandledrejection',function(e){
+    if(e.reason!=null)_cap(e.reason instanceof Error?e.reason:new Error(String(e.reason)));
+  });
+})('KSlardarWeb');</script><script>const slardarScript = document.createElement('script');
+    slardarScript.src = 'https://lf3-short.ibytedapm.com/slardar/fe/sdk-web/browser.cn.js?bid=apaas_miaoda&globalName=KSlardarWeb';
+    slardarScript.crossOrigin = 'anonymous';
+    slardarScript.onload = function() {
+      if (window.KSlardarWeb) {
+        window.KSlardarWeb('context.merge', {
+          tenantId: window.tenantId ?? '',
+          appId: window.appId ?? '',
+          stack_version: "0.1.0",
+          app_type: 6,
+          arch_type: 2,
+        });
+        window.KSlardarWeb('init', {
+          bid: 'apaas_miaoda',
+          env: window.ENVIRONMENT || 'online',
+          userId: window.userId ?? '',
+        });
+        window.KSlardarWeb('start');
+        // Flush errors captured before the SDK finished loading
+        var buf = window.__slardarErrBuf || [];
+        window.__slardarErrBuf = [];
+        buf.forEach(function(err) {
+          window.KSlardarWeb('captureException', err instanceof Error ? err : new Error(String(err)), { source: 'pre-sdk-error', referrer: document.referrer || '' });
+        });
+      }
+    };
+    slardarScript.onerror = function() {
+      console.warn('Failed to load Slardar script');
+    };
+    document.head.appendChild(slardarScript);</script><script src="https://sf3-scmcdn-cn.feishucdn.com/obj/unpkg/byted/performance/0.2.3/dist/performance.iife.js" data-app-name="builderV3" crossorigin="anonymous" defer="defer"></script><script>(function (win, export_obj) {
+    win['LogAnalyticsObject'] = export_obj;
+    if (!win[export_obj]) {
+      function _collect() { _collect.q.push(arguments); }
+      _collect.q = _collect.q || [];
+      win[export_obj] = _collect;
+    }
+    win[export_obj].l = +new Date();
+  })(window, 'collectEvent');
+
+  const teaScript = document.createElement('script');
+  teaScript.src = 'https://lf3-cdn-tos.bytescm.com/obj/static/log-sdk/collect/5.1/collect.js';
+  teaScript.crossOrigin = 'anonymous';
+  teaScript.async = true;
+  teaScript.onerror = function() {
+    console.warn('Failed to load Tea script');
+  };
+  document.head.appendChild(teaScript);</script><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{appName}}</title><script type="module" crossorigin src="./assets/index-_FV5S7rk.js"></script><link rel="modulepreload" crossorigin href="./assets/rolldown-runtime-QTnfLwEv.js"><link rel="modulepreload" crossorigin href="./assets/radix-CRsLnWaV.js"><link rel="modulepreload" crossorigin href="./assets/toolkit-C2_jIE7b.js"><link rel="modulepreload" crossorigin href="./assets/card-9nNQrg0U.js"><link rel="stylesheet" crossorigin href="./assets/index-DZsQqNBy.css"><meta property="og:title" content="{{appName}}"><meta property="og:description" content="{{appDescription}}"><meta property="og:image" content="{{appAvatar}}"><meta name="description" content="{{appDescription}}"><link rel="icon" href="{{appAvatar}}"></head><body><div id="root"></div></body></html>
