@@ -1,0 +1,60 @@
+{
+  "list": [
+    {
+      "name": "Pebble Time 智能手表",
+      "platform": "Kickstarter",
+      "category": "智能硬件",
+      "innovation": "电子墨水屏 + 7天续航，把智能手表做回\"手表\"的极简路线",
+      "backers": 78234,
+      "progress": "1400%",
+      "url": "https://www.kickstarter.com/projects/getpebble/pebble-time-awesome-smartwatch-no-compromises"
+    },
+    {
+      "name": "Exploding Kittens 爆炸猫卡牌",
+      "platform": "Kickstarter",
+      "category": "桌游玩具",
+      "innovation": "俄罗斯轮盘式卡牌玩法，把\"抽牌即淘汰\"做成派对爆款",
+      "backers": 219382,
+      "progress": "878%",
+      "url": "https://www.kickstarter.com/projects/explodingkittens/exploding-kittens"
+    },
+    {
+      "name": "Coolest Cooler 酷凉保温箱",
+      "platform": "Kickstarter",
+      "category": "户外出行",
+      "innovation": "保温箱 + 搅拌机 + 蓝牙音箱 + USB充电一体，重新定义户外聚会",
+      "backers": 62420,
+      "progress": "2648%",
+      "url": "https://www.kickstarter.com/projects/ryangrepper/coolest-cooler-21st-century-cooler-thats-actually"
+    },
+    {
+      "name": "Anova Precision Cooker 低温慢煮机",
+      "platform": "Kickstarter",
+      "category": "厨房电器",
+      "innovation": "精准控温 sous vide，让\"真空低温慢煮\"从餐厅走进家庭厨房",
+      "backers": 18325,
+      "progress": "365%",
+      "url": "https://www.kickstarter.com/projects/anovaculinary/anova-precision-cooker"
+    },
+    {
+      "name": "Fidget Cube 解压魔方",
+      "platform": "Kickstarter",
+      "category": "减压玩具",
+      "innovation": "把\"手痒\"做成产品：7面不同手感，专注办公/焦虑人群",
+      "backers": 154926,
+      "progress": "1286%",
+      "url": "https://www.kickstarter.com/projects/antsy-labs/fidget-cube-a-virtually-indestructible-fidget-toy"
+    },
+    {
+      "name": "Flow Hive 免打扰蜂巢",
+      "platform": "Indiegogo",
+      "category": "农业家居",
+      "innovation": "侧面取蜜设计，不用开箱惊扰蜜蜂，把养蜂变成阳台可做的事",
+      "backers": 37422,
+      "progress": "1325%",
+      "url": "https://www.indiegogo.com/projects/flow-hive-honey-on-tap-without-beekeeping"
+    }
+  ],
+  "updatedAt": "2026-10-13T00:00:00+08:00",
+  "source": "pool-static"
+}
