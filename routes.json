@@ -1,0 +1,44 @@
+[
+  {
+    "path": "/"
+  },
+  {
+    "path": "/market"
+  },
+  {
+    "path": "/profit"
+  },
+  {
+    "path": "/peak"
+  },
+  {
+    "path": "/language"
+  },
+  {
+    "path": "/operation"
+  },
+  {
+    "path": "/recipe"
+  },
+  {
+    "path": "/viral"
+  },
+  {
+    "path": "/ai"
+  },
+  {
+    "path": "/news"
+  },
+  {
+    "path": "/morning"
+  },
+  {
+    "path": "/weather"
+  },
+  {
+    "path": "/team"
+  },
+  {
+    "path": "/kpi"
+  }
+]
