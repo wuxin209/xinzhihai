@@ -49,8 +49,17 @@ function base64ToUtf8(b64) {
   return new TextDecoder().decode(bytes);
 }
 
+// 账号数据短缓存：降低 GitHub API 调用频率（避免限流导致全员登出），写入后立即失效
+let _accountsCache = null;
+let _accountsCacheAt = 0;
+const ACCOUNTS_CACHE_TTL = 15000; // 15 秒
+
 // 读取账号数据
 export async function getAccounts(env) {
+  const now = Date.now();
+  if (_accountsCache && now - _accountsCacheAt < ACCOUNTS_CACHE_TTL) {
+    return _accountsCache;
+  }
   const token = getGithubToken(env);
   try {
     const resp = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
@@ -59,7 +68,9 @@ export async function getAccounts(env) {
     if (!resp.ok) return { accounts: [], error: `HTTP ${resp.status}` };
     const data = await resp.json();
     const content = JSON.parse(base64ToUtf8(data.content));
-    return { accounts: content.accounts || [], sha: data.sha };
+    _accountsCache = { accounts: content.accounts || [], sha: data.sha };
+    _accountsCacheAt = now;
+    return _accountsCache;
   } catch (e) {
     return { accounts: [], error: e.message };
   }
@@ -67,6 +78,7 @@ export async function getAccounts(env) {
 
 // 写入账号数据（带重试：GitHub contents 接口偶发 5xx / 403 "Timed out validating rule" / 409 sha 冲突）
 export async function saveAccounts(env, accounts, sha) {
+  _accountsCache = null; // 写入前先清缓存，保证删除/禁用/改密立即生效
   const token = getGithubToken(env);
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`;
   const content = utf8ToBase64(JSON.stringify({ accounts }, null, 2));
@@ -78,7 +90,7 @@ export async function saveAccounts(env, accounts, sha) {
         headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' },
         body: JSON.stringify({ message: `更新账号数据 ${new Date().toISOString()}`, content, sha: curSha })
       });
-      if (resp.ok) return true;
+      if (resp.ok) { _accountsCache = null; return true; }
       let errBody = {};
       try { errBody = await resp.json(); } catch (_) {}
       // 409=sha过期：重新拉取最新sha再试
