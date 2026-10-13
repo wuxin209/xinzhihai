@@ -59,6 +59,16 @@ export async function onRequestPost(context) {
       const acc = accounts.find(a => a.username === username);
       if (!acc) return new Response(JSON.stringify({ error: '账号不存在' }), { status: 404, headers: corsHeaders });
       acc.passwordHash = await hashPassword(password || '123456');
+    } else if (action === 'approve') {
+      const acc = accounts.find(a => a.username === username);
+      if (!acc) return new Response(JSON.stringify({ error: '账号不存在' }), { status: 404, headers: corsHeaders });
+      if (acc.status === 'pending' || acc.status === 'disabled') acc.status = 'active';
+      else acc.status = 'active';
+    } else if (action === 'reject') {
+      const idx = accounts.findIndex(a => a.username === username);
+      if (idx === -1) return new Response(JSON.stringify({ error: '账号不存在' }), { status: 404, headers: corsHeaders });
+      if (username === 'wuxin209') return new Response(JSON.stringify({ error: '不能删除主账号' }), { status: 400, headers: corsHeaders });
+      accounts.splice(idx, 1);
     } else if (action === 'toggle') {
       const acc = accounts.find(a => a.username === username);
       if (!acc) return new Response(JSON.stringify({ error: '账号不存在' }), { status: 404, headers: corsHeaders });
