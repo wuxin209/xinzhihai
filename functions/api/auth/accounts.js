@@ -59,6 +59,7 @@ export async function onRequestPost(context) {
       const acc = accounts.find(a => a.username === username);
       if (!acc) return new Response(JSON.stringify({ error: '账号不存在' }), { status: 404, headers: corsHeaders });
       acc.passwordHash = await hashPassword(password || '123456');
+      acc.tokenVersion = (acc.tokenVersion || 0) + 1; // 改密后旧登录态立即失效（服务端同步）
     } else if (action === 'approve') {
       const acc = accounts.find(a => a.username === username);
       if (!acc) return new Response(JSON.stringify({ error: '账号不存在' }), { status: 404, headers: corsHeaders });
