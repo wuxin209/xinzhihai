@@ -34,10 +34,10 @@ export async function onRequestPost(context) {
     const body = await context.request.json().catch(() => ({}));
     const { action, username, password, adminUser } = body;
 
-    // 必须是登录的超级主账号（JWT 校验），兼容旧的 adminUser 字段
+    // 必须是登录的超级主账号（JWT 校验即足够，不再依赖旧的 adminUser 字段）
     const auth = await authenticateLite(context.request, context.env);
     if (!auth) return new Response(JSON.stringify({ error: '未登录' }), { status: 401, headers: corsHeaders });
-    if (auth.role !== 'super_admin' || adminUser !== 'wuxin209') {
+    if (auth.role !== 'super_admin') {
       return new Response(JSON.stringify({ error: '无权限' }), { status: 403, headers: corsHeaders });
     }
 
