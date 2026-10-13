@@ -14,7 +14,11 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: '用户名和密码不能为空' }), { status: 400, headers: corsHeaders });
     }
 
-    const { accounts, sha } = await getAccounts(context.env);
+    const fetched = await getAccounts(context.env);
+    if (fetched.error) {
+      return new Response(JSON.stringify({ error: '服务暂时不可用，请稍后重试' }), { status: 503, headers: corsHeaders });
+    }
+    const { accounts, sha } = fetched;
     const account = accounts.find(a => a.username === username);
 
     // 超级管理员wuxin209：如果数据库中没有密码哈希（初始化状态），设置密码并登录

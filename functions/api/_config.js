@@ -61,19 +61,26 @@ export async function getAccounts(env) {
     return _accountsCache;
   }
   const token = getGithubToken(env);
-  try {
-    const resp = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' }
-    });
-    if (!resp.ok) return { accounts: [], error: `HTTP ${resp.status}` };
-    const data = await resp.json();
-    const content = JSON.parse(base64ToUtf8(data.content));
-    _accountsCache = { accounts: content.accounts || [], sha: data.sha };
-    _accountsCacheAt = now;
-    return _accountsCache;
-  } catch (e) {
-    return { accounts: [], error: e.message };
+  // 失败自动重试一次（GitHub 偶发限流/网络抖动，避免把拉取失败误判为"账号不存在"）
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
+        headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'xinzhihai-pages' }
+      });
+      if (!resp.ok) {
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+      const data = await resp.json();
+      const content = JSON.parse(base64ToUtf8(data.content));
+      _accountsCache = { accounts: content.accounts || [], sha: data.sha };
+      _accountsCacheAt = now;
+      return _accountsCache;
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+    }
   }
+  return { accounts: [], error: '账号数据拉取失败' };
 }
 
 // 写入账号数据（带重试：GitHub contents 接口偶发 5xx / 403 "Timed out validating rule" / 409 sha 冲突）
