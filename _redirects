@@ -2,3 +2,6 @@
 /app/app_17bz951msx7/assets/* /assets/:splat 200
 
 # rebuild trigger news-morning-accounts-v1635
+
+# SPA fallback
+/*    /index.html   200
