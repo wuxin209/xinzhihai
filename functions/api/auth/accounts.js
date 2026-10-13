@@ -83,7 +83,10 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ error: '未知操作' }), { status: 400, headers: corsHeaders });
     }
 
-    await saveAccounts(context.env, accounts, sha);
+    const saved = await saveAccounts(context.env, accounts, sha);
+    if (!saved) {
+      return new Response(JSON.stringify({ error: '数据保存失败（GitHub 写入失败），操作未生效，请稍后重试' }), { status: 500, headers: corsHeaders });
+    }
     const safeAccounts = accounts.map(a => ({
       id: a.id || a.username,
       username: a.username, role: a.role || 'user',
