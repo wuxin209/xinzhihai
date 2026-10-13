@@ -103,7 +103,7 @@ async function authenticateLite(request, env) {
   const payload = await verifyJWT(token, secret);
   if (!payload || !payload.username) return null;
 
-  // 拉取最新账号档案做二次校验；拉取失败时保守拒绝（避免越权），仅当确实无法读取时按签名放行
+  // 拉取最新账号档案做二次校验；拉取失败时保守拒绝（安全性优先，删除/禁用/改密即时生效）
   try {
     const { accounts } = await getAccounts(env);
     const acct = accounts && accounts.find(a => a.username === payload.username);
@@ -113,8 +113,8 @@ async function authenticateLite(request, env) {
     if ((payload.tv || 0) !== tv) return null; // 改密/禁用后 token 版本失效
     return payload;
   } catch (e) {
-    // 配置异常或网络故障：不扩大权限，按旧行为仅校验签名放行（可用性优先，但账号删除/禁用在校验可用时仍会被拦）
-    return payload;
+    // 配置异常或网络故障：保守拒绝，绝不放行（保证主账号删除/禁用/改密后旧会话一定失效）
+    return null;
   }
 }
 
