@@ -28,8 +28,8 @@ export async function onRequestPost(context) {
 
     acc.passwordHash = await hashPassword(String(newPassword));
     const saved = await saveAccounts(context.env, accounts, sha);
-    if (!saved.ok) {
-      return new Response(JSON.stringify({ error: `服务端保存失败：${saved.error || saved.status}` }), { status: 502, headers: corsHeaders });
+    if (!saved) {
+      return new Response(JSON.stringify({ error: '服务端保存失败，请稍后重试' }), { status: 502, headers: corsHeaders });
     }
     return new Response(JSON.stringify({ success: true, username: acc.username, message: '密码已更新' }), { headers: corsHeaders });
   } catch (e) {
