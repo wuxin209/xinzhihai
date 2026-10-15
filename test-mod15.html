@@ -1,0 +1,21 @@
+<html><body><script type="module">
+window.__r={};
+// 提取 t2.js 的 stats 段
+const res=await fetch("./assets/t2.js");
+let code=await res.text();
+const i=code.indexOf("[ps,Pt]=");
+// 向后找到 useEffect 前
+const seg1=code.slice(i-10, i+200);
+const seg2=code.slice(i-10, i+400);
+const seg3=code.slice(i-10, i+600);
+for (const [n,seg] of [["seg1",seg1],["seg2",seg2],["seg3",seg3]]) {
+  try { new Function(seg); window.__r[n]="OK"; }
+  catch(e){ window.__r[n]="ERR:"+String(e).slice(0,70); }
+}
+// 也直接测完整表达式
+const j=code.indexOf("[ps,Pt]=");
+const k=code.indexOf("function ie");
+window.__r.statsFull=code.slice(j-30, j+1000);
+try { new Function(code.slice(j-30, j+1000)); window.__r.statsFullEval="OK"; }
+catch(e){ window.__r.statsFullEval="ERR:"+String(e).slice(0,70); }
+</script></body></html>

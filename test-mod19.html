@@ -1,0 +1,7 @@
+<html><body><script type="module">
+window.__r={};
+for (const n of ["tx","ty"]) {
+  try { await import("./assets/"+n+".js"); window.__r[n]="OK"; }
+  catch(e){ window.__r[n]="ERR:"+String(e).slice(0,80); }
+}
+</script></body></html>

@@ -1,0 +1,14 @@
+<html><body><script type="module">
+window.__r={};
+const res=await fetch("./assets/comp-Hx.js");
+let code=await res.text();
+// 测试1: 全部非ASCII替换为a
+let ascii=code.replace(/[^\x00-\x7F]/g,'a');
+try { new Function('K','Q', ascii); window.__r.ascii="OK"; } catch(e){ window.__r.ascii="ERR:"+String(e).slice(0,80); }
+// 测试2: 去掉所有模板字符串, 看结构
+let noTpl=code.replace(/\`[^\`]*\`/g,'""');
+try { new Function('K','Q', noTpl); window.__r.noTpl="OK"; } catch(e){ window.__r.noTpl="ERR:"+String(e).slice(0,80); }
+// 测试3: 找出具体报错——用逐 token 定位: 去掉第一个反引号模板后
+let one=code.replace(/\`[^\`]*\`/,'""');
+try { new Function('K','Q', one); window.__r.one="OK"; } catch(e){ window.__r.one="ERR:"+String(e).slice(0,80); }
+</script></body></html>

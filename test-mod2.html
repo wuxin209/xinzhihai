@@ -1,0 +1,24 @@
+<html><body><script type="module">
+window.__result=null;
+const res=await fetch("./assets/index-CcPpw37f-v278.js");
+const code=await res.text();
+function tryEval(seg){
+  return new Promise(resolve=>{
+    const s=document.createElement('script');
+    s.type='module';
+    s.textContent=seg;
+    s.onerror=()=>resolve('ERR');
+    window.addEventListener('error',e=>resolve('ERR:'+e.message),{once:true});
+    document.body.appendChild(s);
+    setTimeout(()=>resolve('OK'),800);
+  });
+}
+// 粗分 8 段
+const n=8, seg=Math.ceil(code.length/n), bad=[];
+for(let i=0;i<n;i++){
+  const part=code.slice(i*seg, Math.min((i+1)*seg, code.length));
+  const r=await tryEval(part);
+  if(r!=='OK') bad.push({i, r, from:i*seg, to:Math.min((i+1)*seg,code.length)});
+}
+window.__result=JSON.stringify({total:code.length, bad});
+</script></body></html>

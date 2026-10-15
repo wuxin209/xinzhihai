@@ -1,0 +1,11 @@
+<html><body><script type="module">
+window.__r={};
+const res=await fetch("./assets/new-ui3-test.js");
+let code=await res.text();
+for (const n of ["Px","Hx","Mx","Rx"]) {
+  const st=code.indexOf("function "+n+"(");
+  const en=(n==="Rx")?code.length:code.indexOf("function "+(n==="Px"?"Hx":n==="Hx"?"Mx":"Rx")+"(");
+  try { new Function("K","Q", code.slice(st,en)); window.__r[n]="OK"; }
+  catch(e){ window.__r[n]="ERR:"+String(e).slice(0,60); }
+}
+</script></body></html>

@@ -1,0 +1,13 @@
+<html><body><script type="module">
+window.__r={};
+// 精确复现: 片段带假上下文
+const base="function wrap(){var i='u1',b=[],T=[],E=function(){},W={success:function(){}},P=globalThis.localStorage,Pt=function(){};";
+const seg="return e},[T]),[ps,Pt]=(0,H.useState)(function(){try{var e=P.getItem(`patrolStats`);if(e)return JSON.parse(e)}catch(_e){}return{}}),(0,H.useEffect)(()=>{if(P.setItem(`todos:${i}`,";
+// 完整: 把 useEffect 也补上
+const segFull="return e},[T]),[ps,Pt]=(0,H.useState)(function(){try{var e=P.getItem(`patrolStats`);if(e)return JSON.parse(e)}catch(_e){}return{}}),(0,H.useEffect)(()=>{});";
+try { new Function(base+segFull+"}"); window.__r.standalone="OK"; }
+catch(e){ window.__r.standalone="ERR:"+String(e).slice(0,80); }
+// 不带 useMemo 前文的纯 stats 段
+try { new Function("var H={useState:function(x){return [x,function(){}]},useEffect:function(){}};[ps,Pt]=(0,H.useState)(function(){return{}});"); window.__r.statsOnly="OK"; }
+catch(e){ window.__r.statsOnly="ERR:"+String(e).slice(0,80); }
+</script></body></html>
