@@ -1,5 +1,7 @@
 import { getDeepSeekKey, getVolcanoKey } from './_config.js';
 
+function hashKey(str){let h=5381;for(let i=0;i<str.length;i++){h=((h<<5)+h+str.charCodeAt(i))>>>0;}return 'ai'+h.toString(36);}
+
 export async function onRequestPost(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
@@ -9,6 +11,11 @@ export async function onRequestPost(context) {
     const messages = [];
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: prompt });
+    // ==== 算力控制：相同 prompt 24h 内命中缓存 ====
+    const _ck = hashKey((system||'')+'|'+prompt);
+    let _cached = null;
+    try { const _hit = await caches.default.match(_ck); if (_hit) _cached = await _hit.json(); } catch(e){}
+    if (_cached) { return new Response(JSON.stringify({..._cached, cached:true}), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
 
     const deepseekKey = getDeepSeekKey(context.env);
     if (deepseekKey) {
@@ -20,6 +27,7 @@ export async function onRequestPost(context) {
       });
       if (resp.ok) {
         const data = await resp.json();
+        try { await caches.default.put(_ck, new Response(JSON.stringify({ source: 'deepseek', content: data.choices?.[0]?.message?.content || '' }), { headers: { 'Cache-Control': 'public, max-age=86400' } })); } catch(e){}
         return new Response(JSON.stringify({ source: 'deepseek', content: data.choices?.[0]?.message?.content || '' }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });

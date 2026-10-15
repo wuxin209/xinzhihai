@@ -36,6 +36,8 @@ async function callVolcano(apiKey, ep, messages) {
   return data.choices?.[0]?.message?.content || '';
 }
 
+function hashKey(str){let h=5381;for(let i=0;i<str.length;i++){h=((h<<5)+h+str.charCodeAt(i))>>>0;}return 'g'+h.toString(36);}
+
 function fallbackResult(product, category, site, sellingPoints) {
   const t = TPL[category] || TPL['其他'];
   const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
@@ -86,6 +88,11 @@ export async function onRequestPost(context) {
     const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
     const isCoupang = site.includes('酷胖') || site.includes('Coupang');
     const siteName = isCoupang ? 'Coupang' : isTiktok ? 'TikTok Shop' : 'Amazon';
+    // ==== 算力控制：相同输入 24h 内命中缓存，不重复调用 AI ====
+    const _ck = 'gen_'+hashKey(product+'|'+category+'|'+site+'|'+sellingPoints);
+    let _cached = null;
+    try { const _hit = await caches.default.match(_ck); if (_hit) _cached = await _hit.json(); } catch(e){}
+    if (_cached) { return new Response(JSON.stringify({..._cached, cached:true}), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
     // AI 源：DeepSeek 优先（CF 侧可达），火山方舟兜底（CF 侧不可达仅保留备选）
     const volcKey = getVolcanoKey(context.env);
     const volcEp = getVolcanoEp(context.env);
@@ -130,6 +137,7 @@ export async function onRequestPost(context) {
     } else {
       aiResult = fallbackResult(product, category, site, sellingPoints);
     }
+    try { await caches.default.put(_ck, new Response(JSON.stringify(aiResult), { headers: { 'Cache-Control': 'public, max-age=86400' } })); } catch(e){}
     return new Response(JSON.stringify(aiResult), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
