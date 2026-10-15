@@ -12,9 +12,9 @@ export async function onRequestPost(context) {
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: prompt });
     // ==== 算力控制：相同 prompt 24h 内命中缓存 ====
-    const _ck = hashKey((system||'')+'|'+prompt);
+    const _ck = 'https://xinzhihai.pages.dev/_ai/'+hashKey((system||'')+'|'+prompt);
     let _cached = null;
-    try { const _hit = await caches.default.match(_ck); if (_hit) _cached = await _hit.json(); } catch(e){}
+    try { const _hit = await caches.default.match(new Request(_ck)); if (_hit) _cached = await _hit.json(); } catch(e){}
     if (_cached) { return new Response(JSON.stringify({..._cached, cached:true}), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
 
     const deepseekKey = getDeepSeekKey(context.env);

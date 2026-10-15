@@ -89,9 +89,9 @@ export async function onRequestPost(context) {
     const isCoupang = site.includes('酷胖') || site.includes('Coupang');
     const siteName = isCoupang ? 'Coupang' : isTiktok ? 'TikTok Shop' : 'Amazon';
     // ==== 算力控制：相同输入 24h 内命中缓存，不重复调用 AI ====
-    const _ck = 'gen_'+hashKey(product+'|'+category+'|'+site+'|'+sellingPoints);
+    const _ck = 'https://xinzhihai.pages.dev/_gen/'+hashKey(product+'|'+category+'|'+site+'|'+sellingPoints);
     let _cached = null;
-    try { const _hit = await caches.default.match(_ck); if (_hit) _cached = await _hit.json(); } catch(e){}
+    try { const _hit = await caches.default.match(new Request(_ck)); if (_hit) _cached = await _hit.json(); } catch(e){}
     if (_cached) { return new Response(JSON.stringify({..._cached, cached:true}), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
     // AI 源：DeepSeek 优先（CF 侧可达），火山方舟兜底（CF 侧不可达仅保留备选）
     const volcKey = getVolcanoKey(context.env);
