@@ -84,7 +84,7 @@ function Mx({theme:e}){var [x,Sx]=(0,H.useState)(!0),[s,Ps]=(0,H.useState)(funct
   var rc=s?Object.keys(s).filter(function(x){return x.indexOf(m+"-"+String(q+1).padStart(2,"0"))===0}).length:0;
   var week=(0,K.jsx)("div",{className:"grid grid-cols-7 gap-1.5 text-center text-[10px] text-muted-foreground mb-1",children:head.map(function(x){return (0,K.jsx)("span",{key:x,children:x})})});
   var [notes,Nt]=(0,H.useState)(function(){try{var t=P.getItem("memoNotes");if(t)return JSON.parse(t)}catch(r){}return{}}),nk=m+"-"+String(q+1).padStart(2,"0"),nv=notes[nk]||{"a":"","b":"","c":""};
-function np(f,val){Nt(t=>{var o=Object.assign({},t);o[nk]=Object.assign({},nv,{[f]:val});P.setItem("memoNotes",JSON.stringify(o));return o})}
+function np(f,val){try{var k=nk,o=Object.assign({},window.localStorage.getItem("memoNotes")?JSON.parse(window.localStorage.getItem("memoNotes")):{});o[k]=Object.assign({},o[k]||{},{[f]:val});window.localStorage.setItem("memoNotes",JSON.stringify(o))}catch(r){}Nt(t=>{var o2=Object.assign({},t);o2[nk]=Object.assign({},o2[nk]||{},{[f]:val});return o2})}
 var in1=(0,K.jsx)("input",{value:nv.a,onChange:e=>np("a",e.target.value),placeholder:"① 重点备忘（补货/对账/上新…）",className:"w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-white/25"}),
 in2=(0,K.jsx)("input",{value:nv.b,onChange:e=>np("b",e.target.value),placeholder:"② 待办提醒（续费/发货/广告…）",className:"w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-white/25"}),
 in3=(0,K.jsx)("input",{value:nv.c,onChange:e=>np("c",e.target.value),placeholder:"③ 备注（选品/踩坑/灵感…）",className:"w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-white/25"}),
