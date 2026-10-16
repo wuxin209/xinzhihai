@@ -1,3 +1,47 @@
 [
-  { "path": "/" }
+  {
+    "path": "/app/app_17bz951msx7/"
+  },
+  {
+    "path": "/app/app_17bz951msx7/market"
+  },
+  {
+    "path": "/app/app_17bz951msx7/profit"
+  },
+  {
+    "path": "/app/app_17bz951msx7/peak"
+  },
+  {
+    "path": "/app/app_17bz951msx7/language"
+  },
+  {
+    "path": "/app/app_17bz951msx7/operation"
+  },
+  {
+    "path": "/app/app_17bz951msx7/recipe"
+  },
+  {
+    "path": "/app/app_17bz951msx7/viral"
+  },
+  {
+    "path": "/app/app_17bz951msx7/ai"
+  },
+  {
+    "path": "/app/app_17bz951msx7/news"
+  },
+  {
+    "path": "/app/app_17bz951msx7/morning"
+  },
+  {
+    "path": "/app/app_17bz951msx7/weather"
+  },
+  {
+    "path": "/app/app_17bz951msx7/team"
+  },
+  {
+    "path": "/app/app_17bz951msx7/purchase"
+  },
+  {
+    "path": "/app/app_17bz951msx7/kpi"
+  }
 ]
