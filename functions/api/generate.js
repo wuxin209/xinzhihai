@@ -103,6 +103,7 @@ export async function onRequestPost(context) {
 
     let aiResult;
     if (aiCall) {
+    if (!aiRateLimit()) return new Response(JSON.stringify({ source: 'rate_limited', content: '', error: 'AI 调用过于频繁，请 1 分钟后再试（同内容 24h 内缓存免费复用）' }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       try {
         if (isTiktok) {
           const prompt = '你是跨境电商TikTok短视频运营专家。为产品"' + product + '"（类目：' + category + '，站点：' + site + '，核心卖点：' + (sellingPoints || '无') + '）创作带货脚本。硬性要求：1) 口播必须全程紧扣产品本身：开头3秒用产品名+痛点钩子，中段自然说出2-3个具体卖点（优先用提供的卖点原话，没有则按品类常识展开），结尾用价格/优惠/小黄车引导转化，禁止"家人们真的绝了""太好用了"这类空泛套话；2) storyboard 每段shot写具体拍摄画面（产品特写/使用场景/对比演示），line必须是能直接念的完整台词；3) 标题20字内要带产品名或品类词。严格按JSON返回（不要markdown）：{"tiktokTitle":"标题","script30s":"30秒口播","script60s":"60秒口播","storyboard":[{"time":"0-3s","shot":"画面","line":"台词"},{"time":"3-15s","shot":"画面","line":"台词"},{"time":"15-30s","shot":"画面","line":"台词"},{"time":"30-45s","shot":"画面","line":"台词"},{"time":"45-60s","shot":"画面","line":"台词"}],"hashtags":["#标签"]}';

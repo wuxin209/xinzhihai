@@ -1,3 +1,13 @@
+
+// ==== 算力保护：单实例 1 分钟最多 5 次真实 AI 调用（防异常刷调用）====
+let _aiCalls = [];
+function aiRateLimit() {
+  const now = Date.now();
+  _aiCalls = _aiCalls.filter(t => now - t < 60000);
+  if (_aiCalls.length >= 5) return false;
+  _aiCalls.push(now);
+  return true;
+}
 import { getDeepSeekKey, getVolcanoKey } from './_config.js';
 
 function hashKey(str){let h=5381;for(let i=0;i<str.length;i++){h=((h<<5)+h+str.charCodeAt(i))>>>0;}return 'ai'+h.toString(36);}
@@ -17,6 +27,7 @@ export async function onRequestPost(context) {
     try { const _hit = await caches.default.match(new Request(_ck)); if (_hit) _cached = await _hit.json(); } catch(e){}
     if (_cached) { return new Response(JSON.stringify({..._cached, cached:true}), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
 
+    if (!aiRateLimit()) { return new Response(JSON.stringify({ source: "rate_limited", content: "", error: "AI 调用过于频繁，请 1 分钟后再试（同内容 24h 内缓存免费复用）" }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
     const deepseekKey = getDeepSeekKey(context.env);
     if (deepseekKey) {
       const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
