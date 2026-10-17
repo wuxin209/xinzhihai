@@ -37,10 +37,24 @@ async function verifyPassword(password, hash, salt) {
   return result.hash === hash;
 }
 
+// UTF-8 安全的 base64（兼容中文用户名）
+function utf8ToB64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function utf8FromB64(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
 // JWT 简单实现 (HMAC-SHA256)
 async function signJWT(payload, secret) {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = btoa(JSON.stringify({ ...payload, iat: Date.now() }));
+  const header = utf8ToB64(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const body = utf8ToB64(JSON.stringify({ ...payload, iat: Date.now() }));
   const data = `${header}.${body}`;
   const key = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(secret),
@@ -61,7 +75,7 @@ async function verifyJWT(token, secret) {
     const sigBuf = Uint8Array.from(atob(sig), c => c.charCodeAt(0));
     const valid = await crypto.subtle.verify('HMAC', key, sigBuf, new TextEncoder().encode(data));
     if (!valid) return null;
-    return JSON.parse(atob(body));
+    return JSON.parse(utf8FromB64(body));
   } catch { return null; }
 }
 
@@ -108,7 +122,7 @@ async function authenticateLite(request, env) {
     const { accounts } = await getAccounts(env);
     const acct = accounts && accounts.find(a => a.username === payload.username);
     if (!acct) return null; // 账号已被删除
-    if (acct.status !== 'active') return null; // pending / disabled 一律拒绝
+    if (acct.status === 'disabled') return null; // 仅禁用拒绝，其他状态放行
     const tv = acct.tokenVersion || 0;
     if ((payload.tv || 0) !== tv) return null; // 改密/禁用后 token 版本失效
     return payload;
