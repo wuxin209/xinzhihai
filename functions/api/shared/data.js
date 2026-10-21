@@ -89,6 +89,15 @@ export async function onRequestGet(context) {
 
 // POST - 写入共享数据（全量覆盖，前端合并后传）
 export async function onRequestPost(context) {
+  return handleSave(context);
+}
+
+// PUT - 同POST（兼容前端fetch PUT请求）
+export async function onRequestPut(context) {
+  return handleSave(context);
+}
+
+async function handleSave(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
     const data = body.data || body;
