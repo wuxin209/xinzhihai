@@ -145,9 +145,11 @@ export async function onRequestPost(context) {
     try { const _hit = await caches.default.match(new Request(_ck)); if (_hit) _cached = await _hit.json(); } catch(e){}
     if (_cached) { return new Response(JSON.stringify({..._cached, cached:true}), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }); }
     // AI 源：DeepSeek 优先（CF 侧可达），火山方舟兜底（CF 侧不可达仅保留备选）
-    const volcKey = getVolcanoKey(context.env);
-    const volcEp = getVolcanoEp(context.env);
-    const dsKey = getDeepSeekKey(context.env);
+    // 紧急止血：先关闭真实AI调用，全部走模板，避免流量继续消耗
+    const AI_ENABLED = false; // 改成true才会真实调DeepSeek
+    const volcKey = AI_ENABLED ? getVolcanoKey(context.env) : null;
+    const volcEp = AI_ENABLED ? getVolcanoEp(context.env) : null;
+    const dsKey = AI_ENABLED ? getDeepSeekKey(context.env) : null;
     let aiCall = null;
     if (dsKey) aiCall = (msgs) => callDeepSeek(dsKey, msgs);
     else if (volcKey && volcEp) aiCall = (msgs) => callVolcano(volcKey, volcEp, msgs);
