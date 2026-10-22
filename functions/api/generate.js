@@ -81,27 +81,41 @@ function fallbackResult(product, category, site, sellingPoints) {
     ] };
 }
 
-// ==== 后端限流：每IP每分钟5次 + 全局每天200次 ====
-const _ipHits = {}; // 内存兜底（同节点有效）
-const _dayCount = { count: 0, date: '' };
+// ==== 后端限流：用caches.default做分布式计数 ====
+// 每IP每分钟最多5次，全局每天最多200次
+async function cacheGetJSON(key) {
+  try {
+    const hit = await caches.default.match(new Request(key));
+    if (hit) return await hit.json();
+  } catch(e){}
+  return null;
+}
+async function cachePutJSON(key, obj, ttlSec) {
+  try {
+    await caches.default.put(key, new Response(JSON.stringify(obj), {
+      headers: { 'Cache-Control': 'public, max-age=' + ttlSec }
+    }));
+  } catch(e){}
+}
 
 async function ipRateLimited(ip) {
-  const now = Date.now();
-  const win = 60000; // 1分钟窗口
-  if (!_ipHits[ip]) _ipHits[ip] = [];
-  _ipHits[ip] = _ipHits[ip].filter(t => now - t < win);
-  if (_ipHits[ip].length >= 5) return true;
-  _ipHits[ip].push(now);
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = Math.floor(now / 60) * 60; // 按分钟窗口
+  const key = 'https://xinzhihai.pages.dev/_rl/ip/' + ip + '/' + windowStart;
+  const cur = await cacheGetJSON(key) || { count: 0 };
+  if (cur.count >= 5) return true;
+  await cachePutJSON(key, { count: cur.count + 1 }, 120); // TTL 2分钟
   return false;
 }
 
 async function dailyLimit() {
   const today = new Date().toISOString().slice(0, 10);
-  if (_dayCount.date !== today) { _dayCount.date = today; _dayCount.count = 0; }
-  return _dayCount.count >= 200;
+  const key = 'https://xinzhihai.pages.dev/_rl/day/' + today;
+  const cur = await cacheGetJSON(key) || { count: 0 };
+  if (cur.count >= 200) return true;
+  await cachePutJSON(key, { count: cur.count + 1 }, 86400); // TTL 24小时
+  return false;
 }
-
-async function incDaily() { _dayCount.count++; }
 
 export async function onRequestPost(context) {
   try {
@@ -120,7 +134,6 @@ export async function onRequestPost(context) {
         status: 429, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     }
-    await incDaily();
 
     const { product = '这款产品', category = '其他', site = '亚马逊美国站', sellingPoints = '' } = body;
     const isTiktok = site.includes('TikTok') || site.includes('tiktok') || site.includes('东南亚');
