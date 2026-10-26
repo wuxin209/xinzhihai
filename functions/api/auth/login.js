@@ -63,9 +63,8 @@ export async function onRequestPost(context) {
     if (account.status === 'disabled') {
       return new Response(JSON.stringify({ error: '账号已被禁用，请联系管理员' }), { status: 403, headers: corsHeaders });
     }
-    // pending 状态自动视为已通过审批（兼容历史数据）
     if (account.status === 'pending') {
-      account.status = 'active';
+      return new Response(JSON.stringify({ error: '账号待审批，请联系主账号通过后再登录' }), { status: 403, headers: corsHeaders });
     }
 
     const passwordHash = await hashPassword(password);

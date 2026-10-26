@@ -8,7 +8,7 @@ export async function onRequestOptions() {
 export async function onRequestPost(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
-    const { username, password } = body;
+    const { username, password, nickname, parentUsername } = body;
     if (!username || !password) {
       return new Response(JSON.stringify({ error: '用户名和密码不能为空' }), { status: 400, headers: corsHeaders });
     }
@@ -22,7 +22,17 @@ export async function onRequestPost(context) {
     const { accounts, sha } = await getAccounts(context.env);
     
     // 检查用户名是否已存在
-    if (accounts.find(a => a.username === username)) {
+    const existing = accounts.find(a => a.username === username);
+    if (existing) {
+      // pending状态允许重新注册（覆盖密码和昵称）
+      if (existing.status === 'pending') {
+        existing.passwordHash = await hashPassword(password);
+        if (nickname) existing.nickname = nickname;
+        if (parentUsername) existing.parentUsername = parentUsername;
+        const saved = await saveAccounts(context.env, accounts, sha);
+        if (!saved) return new Response(JSON.stringify({ error: '注册失败，请稍后重试' }), { status: 500, headers: corsHeaders });
+        return new Response(JSON.stringify({ success: true, username, status: 'pending', message: '已提交，等待主账号审批' }), { headers: corsHeaders });
+      }
       return new Response(JSON.stringify({ error: '该用户名已被注册' }), { status: 409, headers: corsHeaders });
     }
 
@@ -30,10 +40,12 @@ export async function onRequestPost(context) {
     const newAccount = {
       username,
       passwordHash,
+      nickname: nickname || '',
+      parentUsername: parentUsername || '',
       role: 'user',
       createdAt: new Date().toISOString(),
       lastLogin: null,
-      status: 'active' // 注册即生效，立即可登录
+      status: 'pending' // 注册后待审批
     };
 
     accounts.push(newAccount);
@@ -47,8 +59,8 @@ export async function onRequestPost(context) {
       success: true,
       username,
       role: 'user',
-      status: 'active',
-      message: '注册成功，可直接登录'
+      status: 'pending',
+      message: '注册成功，等待主账号审批'
     }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
