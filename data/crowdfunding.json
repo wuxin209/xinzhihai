@@ -1,0 +1,79 @@
+{
+  "list": [
+    {
+      "id": "cf-1",
+      "name": "PicoNeo 超便携投影",
+      "platform": "Kickstarter",
+      "category": "数码配件",
+      "innovation": "掌心大小、仅 180g 的口袋投影，支持自动对焦+梯形校正，白天也能投，主打移动办公和户外露营场景。",
+      "backers": 12847,
+      "progress": "1560% 达成",
+      "raised": "￥780 万",
+      "goal": "￥50 万",
+      "url": "https://www.kickstarter.com"
+    },
+    {
+      "id": "cf-2",
+      "name": "EcoFlow RIVER 3 便携电站",
+      "platform": "Indiegogo",
+      "category": "户外用品",
+      "innovation": "2.9kg 的超小便携电站，支持 300W 输出+太阳能快充，户外露营和应急断电都能用，比同容量轻一半。",
+      "backers": 8923,
+      "progress": "890% 达成",
+      "raised": "￥445 万",
+      "goal": "￥50 万",
+      "url": "https://www.indiegogo.com"
+    },
+    {
+      "id": "cf-3",
+      "name": "AnkerPrime 100W 多合一线",
+      "platform": "Kickstarter",
+      "category": "3C数码",
+      "innovation": "一条线集成 USB-C/Lightning/MicroUSB 三个头，100W 快充，能当数据线也能当视频线，出门少带三条线。",
+      "backers": 23456,
+      "progress": "3200% 达成",
+      "raised": "￥960 万",
+      "goal": "￥30 万",
+      "url": "https://www.kickstarter.com"
+    },
+    {
+      "id": "cf-4",
+      "name": "NebulaCapsule 胶囊咖啡机",
+      "platform": "Indiegogo",
+      "category": "家电厨房",
+      "innovation": "比保温杯还小的意式胶囊咖啡机，15Bar 压力，车载/办公室/出差都能喝上浓缩，充电款不用插电。",
+      "backers": 5678,
+      "progress": "640% 达成",
+      "raised": "￥192 万",
+      "goal": "￥30 万",
+      "url": "https://www.indiegogo.com"
+    },
+    {
+      "id": "cf-5",
+      "name": "LumaCam 智能门铃",
+      "platform": "Kickstarter",
+      "category": "智能家居",
+      "innovation": "2K 画质+人脸识别+本地存储，不用订阅费就能保存录像，AI 识别快递/访客/可疑人员，电池续航半年。",
+      "backers": 7234,
+      "progress": "410% 达成",
+      "raised": "￥246 万",
+      "goal": "￥60 万",
+      "url": "https://www.kickstarter.com"
+    },
+    {
+      "id": "cf-6",
+      "name": "TidyMate 迷你桌面吸尘器",
+      "platform": "Indiegogo",
+      "category": "生活家居",
+      "innovation": "鼠标大小的桌面吸尘器，12000Pa 吸力，吸橡皮屑/饼干渣/键盘灰都能用，Type-C 充电一次用一个月。",
+      "backers": 15678,
+      "progress": "2100% 达成",
+      "raised": "￥315 万",
+      "goal": "￥15 万",
+      "url": "https://www.indiegogo.com"
+    }
+  ],
+  "updatedAt": "2025-10-01T00:00:00.000Z",
+  "source": "static",
+  "note": "静态精选池 · 每月更新"
+}
