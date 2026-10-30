@@ -207,7 +207,7 @@ async function queryTRO(kws) {
   // 页面内最新的案件日期（尽量找最大日期）
   let updated = '';
   for (const c of cases) if (c.date > updated) updated = c.date;
-  // 123tro 官方 API 品牌直查（全库 6706 条历史案件源，覆盖首页 20 条之外的历史 TRO）
+  // 123tro 官方 API 品牌直查（全库 6904 条历史案件源，覆盖首页 20 条之外的历史 TRO）
   const api = await queryTROAPI(kws);
   const seenCn = new Set(hits.map(h => h.caseNumber));
   for (const h of api.hits) {
@@ -223,7 +223,7 @@ async function queryTRO(kws) {
 // ============ TRO 案件源1b：123tro 官方 API（admin.123tro.com/front/api，全库品牌直查） ============
 async function queryTROAPI(kws) {
   const out = { ok: true, hits: [], total: 0, updated: '', debug: [], fromLocal: true };
-  // ① 本地全库快照匹配（6706 条历史案件，离线稳定，覆盖 335 页全量历史源）
+  // ① 本地全库快照匹配（6904 条历史案件，离线稳定，覆盖 346 页全量历史源）
   const lowerKws = kws.filter(k => k.trim().length >= 2).map(k => k.toLowerCase().trim());
   if (lowerKws.length) {
     const seen = new Set();
@@ -1535,7 +1535,11 @@ const TEAM_DB = [
   { kw: "margaret leann rimes玛格丽特·黎安·莱姆斯 美国歌手美国", src: '侵权图库贰', note: "[律师函] Margaret LeAnn Rimes玛格丽特·黎安·莱姆斯 美国歌手美国" },
   { kw: "r.e.m.乐队,又译为快转眼球乐队 美国摇滚乐队", src: '侵权图库贰', note: "[律师函] R.E.M.乐队,又译为快转眼球乐队 美国摇滚乐队" },
   { kw: "潮牌及常见品牌律师函", src: '侵权图库贰', note: "潮牌及常见品牌律师函" },
-  { kw: "这些全收律师函", src: '侵权图库贰', note: "这些全收律师函" }
+  { kw: "这些全收律师函", src: '侵权图库贰', note: "这些全收律师函" },
+  { kw: "the hobbit", src: '中奖图记录', note: "《霍比特人》The Hobbit 托尔金/指环王系列 版权维权" },
+  { kw: "hobbit", src: '中奖图记录', note: "《霍比特人》The Hobbit 托尔金作品版权" },
+  { kw: "middle earth", src: '侵权图库壹', note: "Middle-earth 中土世界 托尔金/指环王版权地图" },
+  { kw: "just do it", src: '中奖词库', note: "Nike 耐克广告语，图中不得出现该标语文字" }
 ];
 
 function queryTeamDb(kws) {
