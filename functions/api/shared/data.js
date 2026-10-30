@@ -97,17 +97,43 @@ export async function onRequestPut(context) {
   return handleSave(context);
 }
 
+// 判断某个上传字段是否为"空"：null/undefined/空串/空数组/空对象都视为空，空值不覆盖云端已有数据
+function isEmptyValue(v) {
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string') return v.trim() === '';
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
+
 async function handleSave(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
-    const data = body.data || body;
-    if (!data || typeof data !== 'object') {
+    const incoming = body.data || body;
+    if (!incoming || typeof incoming !== 'object') {
       return new Response(JSON.stringify({ error: 'data 必须是对象' }), { status: 400, headers: corsHeaders });
     }
     const latest = await fetchFromGitHub(context.env);
-    const result = await pushToGitHub(context.env, data, latest.sha);
+    const existing = (latest.data && typeof latest.data === 'object') ? latest.data : {};
+
+    // 服务端字段级合并：只有前端传来的"非空"字段才覆盖云端；空值一律保留云端原值，杜绝空推送清空数据
+    const merged = { ...existing };
+    for (const key of Object.keys(incoming)) {
+      const val = incoming[key];
+      if (isEmptyValue(val)) {
+        continue; // 空值跳过，保留云端已有数据
+      }
+      // 对象做浅合并（保留云端未上传的键），数组/标量直接整体覆盖
+      if (typeof val === 'object' && !Array.isArray(val) && existing[key] && typeof existing[key] === 'object' && !Array.isArray(existing[key])) {
+        merged[key] = { ...existing[key], ...val };
+      } else {
+        merged[key] = val;
+      }
+    }
+
+    const result = await pushToGitHub(context.env, merged, latest.sha);
     if (!result.ok) return new Response(JSON.stringify({ error: '保存失败', status: result.status }), { status: 500, headers: corsHeaders });
-    _cache = { data, sha: result.sha };
+    _cache = { data: merged, sha: result.sha };
     _cacheAt = Date.now();
     return new Response(JSON.stringify({ success: true, sha: result.sha }), { headers: corsHeaders });
   } catch (e) {
