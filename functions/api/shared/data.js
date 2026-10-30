@@ -96,8 +96,35 @@ async function fetchBackupSha(env) {
   return { sha: j.sha };
 }
 
-// 数组按 id 智能合并去重：云端独有条目保留，前端同 id 条目以新值覆盖，避免本地旧列表冲掉云端新订单
-function mergeArrays(cloudArr, localArr) {
+// 订单数据只保留2个月（60天），超期自动清理，不做永久留存
+const ORDER_RETENTION_DAYS = 60;
+const RETENTION_MS = ORDER_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+// 各订单字段对应的下单时间字段（按优先级取第一个能解析到的时间）
+const ORDER_TIME_FIELDS = {
+  purchase_orders: ['purchase_date', 'created_at'],
+  lead_time_records: ['ordered_at', 'created_at'],
+};
+
+function parseTime(item, fields) {
+  for (const f of fields) {
+    const v = item && item[f];
+    if (v) {
+      const t = new Date(v).getTime();
+      if (!Number.isNaN(t)) return t;
+    }
+  }
+  return null;
+}
+
+// 判断订单是否超过2个月保留期；取不到时间戳的记录不误删，予以保留
+function isExpiredOrder(item, fields) {
+  const t = parseTime(item, fields);
+  if (t === null) return false;
+  return Date.now() - t > RETENTION_MS;
+}
+
+// 数组按 id 智能合并去重：云端条目与前端条目按 id 合并，前端同 id 以新值覆盖；合并后剔除超过2个月的过期订单
+function mergeArrays(cloudArr, localArr, timeFields) {
   const map = new Map();
   const order = [];
   const hasId = (item) => item && typeof item === 'object' && item.id;
@@ -111,7 +138,11 @@ function mergeArrays(cloudArr, localArr) {
     if (!map.has(key)) order.push(key);
     map.set(key, item);
   }
-  return order.map((k) => map.get(k));
+  let merged = order.map((k) => map.get(k));
+  if (timeFields) {
+    merged = merged.filter((item) => !isExpiredOrder(item, timeFields));
+  }
+  return merged;
 }
 
 export async function onRequestOptions() {
@@ -127,9 +158,16 @@ export async function onRequestGet(context) {
     }
     const { data, sha, error } = await fetchFromGitHub(context.env);
     if (error) return new Response(JSON.stringify({ error }), { status: 500, headers: corsHeaders });
+    // 读取时实时剔除超过2个月的过期订单（仅返回给前端，云端文件仍以最近一次保存为准）
+    const viewData = { ...data };
+    for (const [key, fields] of Object.entries(ORDER_TIME_FIELDS)) {
+      if (Array.isArray(viewData[key])) {
+        viewData[key] = viewData[key].filter((item) => !isExpiredOrder(item, fields));
+      }
+    }
     _cache = { data, sha };
     _cacheAt = now;
-    return new Response(JSON.stringify({ success: true, data }), { headers: corsHeaders });
+    return new Response(JSON.stringify({ success: true, data: viewData }), { headers: corsHeaders });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
   }
@@ -172,13 +210,21 @@ async function handleSave(context) {
         continue; // 空值跳过，保留云端已有数据
       }
       if (Array.isArray(val)) {
-        // 数组按 id 合并去重：云端独有条目保留，本地旧列表不会冲掉云端新订单
-        merged[key] = mergeArrays(existing[key], val);
+        // 数组按 id 合并去重；订单类数组同时剔除超过2个月的过期记录
+        const timeFields = ORDER_TIME_FIELDS[key] || null;
+        merged[key] = mergeArrays(existing[key], val, timeFields);
       } else if (typeof val === 'object' && existing[key] && typeof existing[key] === 'object' && !Array.isArray(existing[key])) {
         // 对象浅合并，保留云端未上传的键
         merged[key] = { ...existing[key], ...val };
       } else {
         merged[key] = val;
+      }
+    }
+
+    // 兜底：即便本次前端没上传某订单数组，也顺手把云端已超2个月的旧订单清掉
+    for (const [key, fields] of Object.entries(ORDER_TIME_FIELDS)) {
+      if (Array.isArray(merged[key])) {
+        merged[key] = merged[key].filter((item) => !isExpiredOrder(item, fields));
       }
     }
 
