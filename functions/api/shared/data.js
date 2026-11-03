@@ -100,14 +100,19 @@ export async function onRequestPut(context) {
 async function handleSave(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
-    const data = body.data || body;
-    if (!data || typeof data !== 'object') {
+    const incoming = body.data || body;
+    if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
       return new Response(JSON.stringify({ error: 'data 必须是对象' }), { status: 400, headers: corsHeaders });
     }
     const latest = await fetchFromGitHub(context.env);
-    const result = await pushToGitHub(context.env, data, latest.sha);
+    // P1 修复：字段级 merge，不再整体覆盖。
+    // 前端每次只推变化的模块，未推送的字段必须原样保留，否则会被清空。
+    // incoming 里的字段直接覆盖云端同名字段（包括空数组 []，用于合法删除/清空）。
+    const existing = (latest.data && typeof latest.data === 'object' && !Array.isArray(latest.data)) ? latest.data : {};
+    const merged = { ...existing, ...incoming };
+    const result = await pushToGitHub(context.env, merged, latest.sha);
     if (!result.ok) return new Response(JSON.stringify({ error: '保存失败', status: result.status }), { status: 500, headers: corsHeaders });
-    _cache = { data, sha: result.sha };
+    _cache = { data: merged, sha: result.sha };
     _cacheAt = Date.now();
     return new Response(JSON.stringify({ success: true, sha: result.sha }), { headers: corsHeaders });
   } catch (e) {
