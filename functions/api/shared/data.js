@@ -129,6 +129,9 @@ async function handleSave(context) {
     // 服务端字段级合并：只有前端传来的"非空"字段才覆盖云端；空值一律保留云端原值
     const merged = { ...existing };
 
+    // 墓碑：已被删除的 id 集合，本地旧缓存再 push 也不加回，根治删除复活
+    const tombstones = new Set(Array.isArray(existing._tombstones) ? existing._tombstones.map(String) : []);
+
     // 先收集显式删除列表（_deleted_<field>），避免被空数组/下划线跳过逻辑漏掉
     const deletedMap = {};
     for (const k of Object.keys(incoming)) {
@@ -154,9 +157,14 @@ async function handleSave(context) {
         for (const rec of val) {
           if (!rec || rec.id == null) continue;
           const cid = String(rec.id);
-          // 软删除标记：前端把记录标记为 deleted=true 时，后端从云端删除该 id
+          // 软删除标记：前端把记录标记为 deleted=true/status=deleted 时，从云端删除并加入墓碑
           if (rec.deleted === true || rec.status === 'deleted') {
             cloudMap.delete(cid);
+            tombstones.add(cid);
+            continue;
+          }
+          // 墓碑拦截：已删除的 id 不再加回云端（防止本地旧缓存复活）
+          if (tombstones.has(cid) && !cloudMap.has(cid)) {
             continue;
           }
           const cloudRec = cloudMap.get(cid);
@@ -171,7 +179,10 @@ async function handleSave(context) {
         }
         // 显式删除列表
         if (Array.isArray(deletedMap[key])) {
-          for (const did of deletedMap[key]) cloudMap.delete(did);
+          for (const did of deletedMap[key]) {
+            cloudMap.delete(did);
+            tombstones.add(did);
+          }
         }
         merged[key] = Array.from(cloudMap.values());
         continue;
@@ -188,6 +199,9 @@ async function handleSave(context) {
         merged[key] = val;
       }
     }
+
+    // 持久化墓碑（已删除 id 集合，防止本地旧缓存复活）
+    merged._tombstones = Array.from(tombstones);
 
     const result = await pushToGitHub(context.env, merged, latest.sha);
     if (!result.ok) return new Response(JSON.stringify({ error: '保存失败', status: result.status }), { status: 500, headers: corsHeaders });
