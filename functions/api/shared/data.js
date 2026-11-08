@@ -128,49 +128,57 @@ async function handleSave(context) {
 
     // 服务端字段级合并：只有前端传来的"非空"字段才覆盖云端；空值一律保留云端原值
     const merged = { ...existing };
+
+    // 先收集显式删除列表（_deleted_<field>），避免被空数组/下划线跳过逻辑漏掉
+    const deletedMap = {};
+    for (const k of Object.keys(incoming)) {
+      if (k.startsWith('_deleted_')) {
+        const field = k.slice('_deleted_'.length);
+        if (Array.isArray(incoming[k])) deletedMap[field] = incoming[k].map(String);
+      }
+    }
+
     for (const key of Object.keys(incoming)) {
       // 元字段（下划线开头）不参与合并，单独处理
       if (key.startsWith('_')) continue;
 
       const val = incoming[key];
-      if (isEmptyValue(val)) {
-        continue; // 空值跳过，保留云端已有数据
-      }
 
       // 数组型业务字段：按 id + updated_at 合并，杜绝整体覆盖导致的状态回滚/删除复活
+      // 即使 val 是空数组（纯删除场景），也要走 merge 分支应用 deletedIds
       if (MERGE_BY_ID_FIELDS.includes(key) && Array.isArray(val) && Array.isArray(existing[key])) {
         const cloudMap = new Map();
         for (const rec of existing[key]) {
           if (rec && rec.id != null) cloudMap.set(String(rec.id), rec);
         }
-        let upserted = 0;
         for (const rec of val) {
           if (!rec || rec.id == null) continue;
           const cid = String(rec.id);
+          // 软删除标记：前端把记录标记为 deleted=true 时，后端从云端删除该 id
+          if (rec.deleted === true || rec.status === 'deleted') {
+            cloudMap.delete(cid);
+            continue;
+          }
           const cloudRec = cloudMap.get(cid);
           if (!cloudRec) {
             cloudMap.set(cid, rec);
-            upserted++;
           } else {
             const tIn = recUpdatedAt(rec);
             const tCloud = recUpdatedAt(cloudRec);
-            if (tIn >= tCloud) {
-              cloudMap.set(cid, rec);
-              upserted++;
-            }
+            if (tIn >= tCloud) cloudMap.set(cid, rec);
             // 否则云端更新，保留云端记录
           }
         }
-        // 显式删除列表（前端删除记录时传 _deleted_<field>）
-        const deletedKey = '_deleted_' + key;
-        const deletedIds = incoming[deletedKey] || body[deletedKey];
-        if (Array.isArray(deletedIds)) {
-          for (const did of deletedIds) {
-            if (did != null) cloudMap.delete(String(did));
-          }
+        // 显式删除列表
+        if (Array.isArray(deletedMap[key])) {
+          for (const did of deletedMap[key]) cloudMap.delete(did);
         }
         merged[key] = Array.from(cloudMap.values());
         continue;
+      }
+
+      if (isEmptyValue(val)) {
+        continue; // 空值跳过，保留云端已有数据
       }
 
       // 对象做浅合并（保留云端未上传的键），其他数组/标量直接整体覆盖
