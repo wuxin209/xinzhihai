@@ -8,7 +8,7 @@ const GITHUB_PATH = 'shared_workspace.json';
 
 let _cache = null;
 let _cacheAt = 0;
-const CACHE_TTL = 10000; // 10秒短缓存
+const CACHE_TTL = 3000; // 3秒短缓存，减少多实例脏读
 
 function utf8ToB64(str) {
   const bytes = new TextEncoder().encode(str);
@@ -106,6 +106,16 @@ function isEmptyValue(v) {
   return false;
 }
 
+// 数组型字段按 id + updated_at 做 last-write-wins 合并，旧tab/旧设备不会用旧状态覆盖新状态
+const MERGE_BY_ID_FIELDS = ['purchase_orders', 'lead_time_records'];
+
+function recUpdatedAt(rec) {
+  if (!rec) return 0;
+  const t = rec.updated_at || rec.updatedAt || rec.created_at || rec.createdAt || 0;
+  const n = new Date(t).getTime();
+  return isNaN(n) ? 0 : n;
+}
+
 async function handleSave(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
@@ -116,14 +126,54 @@ async function handleSave(context) {
     const latest = await fetchFromGitHub(context.env);
     const existing = (latest.data && typeof latest.data === 'object') ? latest.data : {};
 
-    // 服务端字段级合并：只有前端传来的"非空"字段才覆盖云端；空值一律保留云端原值，杜绝空推送清空数据
+    // 服务端字段级合并：只有前端传来的"非空"字段才覆盖云端；空值一律保留云端原值
     const merged = { ...existing };
     for (const key of Object.keys(incoming)) {
+      // 元字段（下划线开头）不参与合并，单独处理
+      if (key.startsWith('_')) continue;
+
       const val = incoming[key];
       if (isEmptyValue(val)) {
         continue; // 空值跳过，保留云端已有数据
       }
-      // 对象做浅合并（保留云端未上传的键），数组/标量直接整体覆盖
+
+      // 数组型业务字段：按 id + updated_at 合并，杜绝整体覆盖导致的状态回滚/删除复活
+      if (MERGE_BY_ID_FIELDS.includes(key) && Array.isArray(val) && Array.isArray(existing[key])) {
+        const cloudMap = new Map();
+        for (const rec of existing[key]) {
+          if (rec && rec.id != null) cloudMap.set(String(rec.id), rec);
+        }
+        let upserted = 0;
+        for (const rec of val) {
+          if (!rec || rec.id == null) continue;
+          const cid = String(rec.id);
+          const cloudRec = cloudMap.get(cid);
+          if (!cloudRec) {
+            cloudMap.set(cid, rec);
+            upserted++;
+          } else {
+            const tIn = recUpdatedAt(rec);
+            const tCloud = recUpdatedAt(cloudRec);
+            if (tIn >= tCloud) {
+              cloudMap.set(cid, rec);
+              upserted++;
+            }
+            // 否则云端更新，保留云端记录
+          }
+        }
+        // 显式删除列表（前端删除记录时传 _deleted_<field>）
+        const deletedKey = '_deleted_' + key;
+        const deletedIds = incoming[deletedKey] || body[deletedKey];
+        if (Array.isArray(deletedIds)) {
+          for (const did of deletedIds) {
+            if (did != null) cloudMap.delete(String(did));
+          }
+        }
+        merged[key] = Array.from(cloudMap.values());
+        continue;
+      }
+
+      // 对象做浅合并（保留云端未上传的键），其他数组/标量直接整体覆盖
       if (typeof val === 'object' && !Array.isArray(val) && existing[key] && typeof existing[key] === 'object' && !Array.isArray(existing[key])) {
         merged[key] = { ...existing[key], ...val };
       } else {
