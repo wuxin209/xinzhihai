@@ -311,32 +311,29 @@ SPF30-50都可以
 ❌ 别买：小植物养不活、不粘锅易掉涂层、定制衣柜太贵
 
 你们去宜家必买什么？评论区补充！`,hashtags:[`宜家`,`宜家好物`,`家居好物`,`收纳`,`好物推荐`,`平价好物`]},tips:[`好物清单类内容数量控制在10个左右，太多用户记不住`,`"第X件回购了X次"的句式制造好奇，引导用户继续看`,`每一件要说清楚"好在哪+价格"，给用户具体的购买理由`,`加一段"避坑"反向推荐，增加真实感和可信度`],scriptPrompt:`你是一个家居好物博主，拍一条35秒宜家好物推荐视频。开头说"宜家最值得买的10件好物，第3件我回购了5次"，快速展示10件好物（每件一句话讲清是什么+为什么值得买+大概价格），重点突出第3件，最后问观众你最喜欢哪件引导评论。节奏快信息量大，画面干净。`}]],Y=n(),ze=`cat_maps_v1`;function Be({theme:e}){
-const[t,n]=(0,J.useState(``)),[a,s]=(0,J.useState)(null),[c,l]=(0,J.useState)(!1);
+const[t,n]=(0,J.useState)(''),[a,s]=(0,J.useState)(null),[c,l]=(0,J.useState)(!1);
 const r=(0,J.useCallback)(()=>{
 if(!t.trim())return;
 l(!0);
-// 简单类目映射表
 const m={
-`手机壳`:`Electronics › Cell Phones & Accessories › Cases, Covers & Skins › Basic Cases`,
-`海报`:`Home & Kitchen › Wall Art › Posters & Prints`,
-`露营`:`Sports & Outdoors › Outdoor Recreation › Camping & Hiking`,
-`毛绒玩具`:`Toys & Games › Stuffed Animals & Plush Toys`,
-`圣诞装饰`:`Home & Kitchen › Seasonal Décor › Christmas › Ornaments`,
-`宠物`:`Pet Supplies › Dogs › Toys`,
-`厨房`:`Home & Kitchen › Kitchen & Dining`,
-`收纳`:`Home & Kitchen › Storage & Organization`,
-`园艺`:`Patio, Lawn & Garden › Gardening & Lawn Care`,
-`汽车`:`Automotive › Interior Accessories`,
-`健身`:`Sports & Outdoors › Exercise & Fitness`,
-`美妆`:`Beauty & Personal Care › Makeup`,
-`服装`:`Clothing, Shoes & Jewelry › Women › Clothing`,
-`玩具`:`Toys & Games › Learning & Education`,
-`灯具`:`Home & Kitchen › Lighting › Lamps & Light Fixtures`,
-`桌布`:`Home & Kitchen › Kitchen & Dining › Table Linens › Tablecloths`
+'手机壳':'Electronics > Cell Phones & Accessories > Cases, Covers & Skins > Basic Cases',
+'海报':'Home & Kitchen > Wall Art > Posters & Prints',
+'露营':'Sports & Outdoors > Outdoor Recreation > Camping & Hiking',
+'毛绒玩具':'Toys & Games > Stuffed Animals & Plush Toys',
+'圣诞装饰':'Home & Kitchen > Seasonal Decor > Christmas > Ornaments',
+'宠物':'Pet Supplies > Dogs > Toys',
+'厨房':'Home & Kitchen > Kitchen & Dining',
+'收纳':'Home & Kitchen > Storage & Organization',
+'园艺':'Patio, Lawn & Garden > Gardening & Lawn Care',
+'汽车':'Automotive > Interior Accessories',
+'健身':'Sports & Outdoors > Exercise & Fitness',
+'美妆':'Beauty & Personal Care > Makeup',
+'服装':'Clothing, Shoes & Jewelry > Women > Clothing',
+'玩具':'Toys & Games > Learning & Education',
+'灯具':'Home & Kitchen > Lighting > Lamps & Light Fixtures',
+'桌布':'Home & Kitchen > Kitchen & Dining > Table Linens > Tablecloths'
 };
-// 中文匹配
 let cat=m[t.trim()];
-// 英文模糊匹配
 if(!cat){
 const lower=t.trim().toLowerCase();
 for(const[k,v]of Object.entries(m)){
@@ -344,29 +341,29 @@ if(lower.includes(k.toLowerCase())||k.toLowerCase().includes(lower)){cat=v;break
 }
 }
 setTimeout(()=>{
-s({cat:cat||`未匹配到具体类目，建议换更具体的关键词`,product:t.trim()});
+s({cat:cat||'未匹配到具体类目，建议换更具体的关键词',product:t.trim()});
 l(!1);
 },500);
 },[t]);
-return(0,Y.jsxs)(`div`,{className:`space-y-4`,children:[
-(0,Y.jsxs)(`div`,{className:`flex gap-2`,children:[
-(0,Y.jsx)(`input`,{value:t,onChange:e=>n(e.target.value),placeholder:`输入产品名，中英文均可`,className:`flex-1 h-10 px-3 rounded-lg border border-border bg-background text-sm`,onKeyDown:e=>e.key===`Enter`&&r()}),
-(0,Y.jsxs)(`button`,{onClick:r,disabled:c,className:`h-10 px-4 rounded-lg text-white text-sm font-medium`,style:{background:e.primary},children:[c?`识别中...`:`识别`]})
+return(0,Y.jsxs)('div',{className:'space-y-4',children:[
+(0,Y.jsxs)('div',{className:'flex gap-2',children:[
+(0,Y.jsx)('input',{value:t,onChange:e=>n(e.target.value),placeholder:'输入产品名，中英文均可',className:'flex-1 h-10 px-3 rounded-lg border border-border bg-background text-sm'}),
+(0,Y.jsxs)('button',{onClick:r,disabled:c,className:'h-10 px-4 rounded-lg text-white text-sm font-medium',style:{background:e.primary},children:[c?'识别中...':'识别']})
 ]}),
-a?(0,Y.jsxs)(`div`,{className:`p-4 rounded-lg bg-muted/50 space-y-3`,children:[
-(0,Y.jsxs)(`div`,{children:[
-(0,Y.jsx)(`div`,{className:`text-xs text-muted-foreground mb-1`,children:`识别结果`}),
-(0,Y.jsx)(`div`,{className:`text-sm font-medium`,children:a.product}),
-(0,Y.jsx)(`div`,{className:`text-xs mt-1 p-2 rounded bg-background`,style:{color:e.primary},children:a.cat})
+a?(0,Y.jsxs)('div',{className:'p-4 rounded-lg bg-muted/50 space-y-3',children:[
+(0,Y.jsxs)('div',{children:[
+(0,Y.jsx)('div',{className:'text-xs text-muted-foreground mb-1',children:'识别结果'}),
+(0,Y.jsx)('div',{className:'text-sm font-medium',children:a.product}),
+(0,Y.jsx)('div',{className:'text-xs mt-1 p-2 rounded bg-background',style:{color:e.primary},children:a.cat})
 ]}),
-(0,Y.jsxs)(`div`,{children:[
-(0,Y.jsx)(`div`,{className:`text-xs text-muted-foreground mb-1`,children:`运营思路扩展`}),
-(0,Y.jsxs)(`ul`,{className:`text-xs space-y-1.5 text-foreground/80`,children:[
-(0,Y.jsx)(`li`,{children:`• 关键词方向：大词竞争激烈，优先打长尾词（如+gift / +for women / +decor）`}),
-(0,Y.jsx)(`li`,{children:`• 定价策略：参考Best Sellers前10名价格带，新品建议定中间偏下+Coupon 10-15%`}),
-(0,Y.jsx)(`li`,{children:`• 视觉差异化：主图突出使用场景，对比图+尺寸图降低退货率`}),
-(0,Y.jsx)(`li`,{children:`• 季节节点：提前60-90天备货，旺季前30天开始投广告`}),
-(0,Y.jsx)(`li`,{children:`• 评论切入点：分析竞品差评，解决其痛点就是你的卖点`})
+(0,Y.jsxs)('div',{children:[
+(0,Y.jsx)('div',{className:'text-xs text-muted-foreground mb-1',children:'运营思路扩展'}),
+(0,Y.jsxs)('ul',{className:'text-xs space-y-1.5 text-foreground/80',children:[
+(0,Y.jsx)('li',{children:'• 关键词方向：大词竞争激烈，优先打长尾词（如+gift / +for women / +decor）'}),
+(0,Y.jsx)('li',{children:'• 定价策略：参考Best Sellers前10名价格带，新品建议定中间偏下+Coupon 10-15%'}),
+(0,Y.jsx)('li',{children:'• 视觉差异化：主图突出使用场景，对比图+尺寸图降低退货率'}),
+(0,Y.jsx)('li',{children:'• 季节节点：提前60-90天备货，旺季前30天开始投广告'}),
+(0,Y.jsx)('li',{children:'• 评论切入点：分析竞品差评，解决其痛点就是你的卖点'})
 ]})
 ]})
 ]}):null
