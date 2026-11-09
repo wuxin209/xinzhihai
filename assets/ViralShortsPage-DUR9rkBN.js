@@ -315,61 +315,148 @@ const[t,n]=(0,J.useState)(''),[a,s]=(0,J.useState)(null),[c,l]=(0,J.useState)(!1
 const r=(0,J.useCallback)(()=>{
 if(!t.trim())return;
 l(!0);
-// 亚马逊一级类目库（30个主类目）
-const cats={
-'Electronics':{name:'电子',desc:'亚马逊第一大类目，3C配件/智能设备/音频视频，竞争极激烈，客单价$15-200，复购率低，靠走量和变体',keys:['电子','耳机','音箱','充电','手机','电脑','键盘','鼠标','显示器','相机','无人机','路由器','硬盘','打印机','投影','电视','蓝牙','usb','数据线','平板','watch','camera','speaker','earbud','charger','phone','laptop','keyboard','mouse','monitor','drone','printer','projector']},
-'Cell Phones & Accessories':{name:'手机配件',desc:'手机壳/膜/充电器/数据线，大词竞争白热化，长尾词机会多，POD模式零库存，客单价$8-25',keys:['手机壳','手机膜','手机充电器','手机线','phone case','screen protector','phone charger']},
-'Home & Kitchen':{name:'家居厨房',desc:'亚马逊第二大类目，厨具/收纳/装饰/家纺，全年常青，季节性强，客单价$10-60，退货率低',keys:['厨房','收纳','餐具','刀','锅','碗','杯子','花瓶','抱枕','窗帘','地毯','镜子','时钟','挂钩','置物架','灯串','花环','桌布','保鲜盒','清洁','拖把','扫帚','垃圾桶','衣架','storage','kitchen','cookware','bedding','curtain','rug','pillow','vase','clock','hook','shelf','cleaning','mop','broom','trash','hanger']},
-'Beauty & Personal Care':{name:'个护美妆',desc:'美妆工具/护肤/美发，客单价$10-40，复购率高，视频种草转化率高，注意FDA合规',keys:['美妆','化妆','刷子','梳子','镜子','牙刷','剃须','口红','面膜','护肤','hair','makeup','beauty','skincare','shaving','comb','brush','mirror','toothbrush']},
-'Toys & Games':{name:'玩具游戏',desc:'全年常青，Q4圣诞季爆发，益智/积木/遥控/毛绒，客单价$10-50，注意CPC认证和小零件警示',keys:['玩具','积木','拼图','遥控','毛绒','玩偶','游戏','toy','building','puzzle','plush','game','doll','rc','drone']},
-'Clothing, Shoes & Jewelry':{name:'服装鞋帽珠宝',desc:'女装/男装/童装/配饰，退货率高达20-30%，尺码是痛点，POD零库存，客单价$10-50',keys:['服装','衣服','裤子','裙子','袜子','帽子','手套','围巾','包','钱包','手表','首饰','耳环','戒指','眼镜','发饰','clothing','shoes','jewelry','socks','hat','gloves','scarf','bag','wallet','watch','necklace','earring','ring','sunglasses','hair']},
-'Health & Household':{name:'健康家居',desc:'健康监测/个人护理/清洁用品，复购率高，合规要求严，客单价$8-50',keys:['健康','体重秤','温度计','口罩','维生素','清洁','消毒','health','thermometer','scale','mask','cleaning','vitamin']},
-'Pet Supplies':{name:'宠物用品',desc:'宠物食品/玩具/用品，复购率高，客单价$10-40，萌宠内容天然高传播，TikTok引流效果好',keys:['宠物','狗','猫','玩具','零食','牵引','窝','猫砂','pet','dog','cat','toy','treat','leash','bed','litter']},
-'Sports & Outdoors':{name:'运动户外',desc:'健身器材/露营/户外装备，季节性强，3-9月旺季，客单价$10-80，视频展示转化高',keys:['运动','健身','露营','户外','瑜伽','跑步','自行车','钓鱼','sports','fitness','camping','outdoor','yoga','running','bicycle','fishing']},
-'Automotive':{name:'汽车摩托',desc:'内饰/外饰/工具/配件，车型词精准，客单价$10-100，男性受众为主，论坛+YouTube种草',keys:['汽车','车载','内饰','外饰','工具','摩托','auto','car','truck','motorcycle','accessory']},
-'Patio, Lawn & Garden':{name:'庭院园艺',desc:'园艺工具/庭院装饰/烧烤设备，3-6月旺季，客单价$10-60，欧美家庭刚需',keys:['园艺','花园','庭院','烧烤','浇水','草坪','garden','patio','lawn','grill','watering']},
-'Tools & Home Improvement':{name:'工具家居',desc:'手动工具/电动工具/装修材料，男性受众，客单价$15-100，耐用为主，YouTube评测转化高',keys:['工具','电钻','扳手','螺丝刀','装修','工具套装','tool','drill','wrench','screwdriver','hardware']},
-'Industrial & Scientific':{name:'工业科学',desc:'实验室设备/工业耗材/安全防护，B端为主，客单价$20-200，复购稳定',keys:['工业','实验室','安全','防护','industrial','lab','safety']},
-'Grocery & Gourmet Food':{name:'食品美食',desc:'零食/饮料/特产，复购率极高，注意食品认证和保质期，客单价$8-30',keys:['食品','零食','饮料','咖啡','茶','蜂蜜','food','snack','coffee','tea','honey']},
-'Arts, Crafts & Sewing':{name:'手工艺术',desc:'绘画/手工/缝纫/DIY材料，DIY爱好者受众，客单价$8-30，Pinterest种草效果好',keys:['海报','画','手工','缝纫','DIY','绘画','十字绣','poster','painting','craft','sewing','diy','cross stitch']},
-'Office Products':{name:'办公用品',desc:'文具/办公设备/家具，B端+C端，全年常青，客单价$10-50',keys:['办公','文具','笔','本子','文件夹','打印','office','stationery','pen','paper','printer']},
-'Luggage & Travel Gear':{name:'旅行箱包',desc:'行李箱/背包/旅行配件，季节性强，暑假/圣诞旺季，客单价$20-100',keys:['行李','旅行','背包','箱子','收纳','luggage','travel','backpack','suitcase']},
-'Musical Instruments':{name:'乐器',desc:'吉他/钢琴配件/乐器周边，小众但精准，客单价$20-200，YouTube教程引流',keys:['乐器','吉他','钢琴','弦','鼓','music','guitar','piano','drum']},
-'Baby Products':{name:'母婴用品',desc:'婴儿床/推车/喂养/玩具，安全合规要求极高，客单价$15-100，妈妈群体复购率高',keys:['婴儿','宝宝','母婴','奶瓶','推车','玩具','baby','infant','bottle','stroller']},
-'Digital Music':{name:'数字音乐',desc:'数字内容类，不适合实体产品卖家',keys:['音乐','music','album']},
-'Books':{name:'图书',desc:'实体书/电子书，小众，不适合大多数卖家',keys:['书','book']},
-'Video Games':{name:'电子游戏',desc:'游戏主机/配件/软件，客单价$20-200，游戏社区活跃',keys:['游戏','主机','手柄','video game','console','controller']},
-'Gift Cards':{name:'礼品卡',desc:'虚拟商品，不适合实体卖家',keys:['礼品卡','gift card']},
-'Software':{name:'软件',desc:'数字软件，不适合实体卖家',keys:['软件','software','app']},
-'Appliances':{name:'家电',desc:'厨房小家电/清洁家电/个护电器，客单价$30-200，Q4旺季，视频评测转化高',keys:['家电','微波炉','烤箱','咖啡机','空气炸锅','扫地机','冰箱','洗衣机','appliance','microwave','oven','coffee maker','air fryer','vacuum','fridge']},
-'Camera & Photo':{name:'相机摄影',desc:'相机/镜头/配件，客单价$20-300，摄影社区活跃，YouTube评测转化高',keys:['相机','镜头','三脚架','摄影','camera','lens','tripod','photography']},
-'Office Electronics':{name:'办公电子',desc:'打印机/扫描仪/投影仪，B端为主，客单价$50-300',keys:['打印','扫描','投影','办公电子','printer','scanner','projector']},
-'Home Audio & Theater':{name:'家庭影院',desc:'音响/功放/投影，客单价$30-200，男性受众，YouTube评测转化高',keys:['音响','功放','家庭影院','home audio','theater']},
-'Computer & Tablets':{name:'电脑平板',desc:'笔记本/平板/配件，客单价$30-300，竞争激烈，靠差异化和服务',keys:['电脑','平板','笔记本','computer','tablet','laptop']},
-'GPS & Navigation':{name:'导航设备',desc:'车载导航/运动相机，小众精准，客单价$30-100',keys:['导航','gps','运动相机','gopro','navigation']},
-'Wearable Technology':{name:'可穿戴设备',desc:'智能手表/手环/VR，客单价$30-200，科技属性强，YouTube评测转化高',keys:['智能手表','手环','vr','wearable','smartwatch','fitness band']}
-};
-// 归类逻辑
+const db=[
+{cat:'Electronics > Cell Phones & Accessories > Cases',name:'手机壳',desc:'手机壳/保护套，大词竞争白热化，长尾词机会多，POD模式零库存，客单价$8-25',keys:['手机壳','phone case','手机保护壳']},
+{cat:'Electronics > Cell Phones & Accessories > Screen Protectors',name:'手机膜',desc:'手机膜/钢化膜，客单价$5-15，复购率高，适合做配件套装',keys:['手机膜','钢化膜','screen protector']},
+{cat:'Electronics > Cell Phones & Accessories > Chargers',name:'手机充电器',desc:'充电器/数据线，客单价$8-20，复购率高，注意MFi认证',keys:['充电器','数据线','charger','cable']},
+{cat:'Electronics > Headphones & Earbuds',name:'耳机耳麦',desc:'蓝牙耳机/降噪耳机/有线耳机，客单价$20-100，音频技术迭代快，YouTube评测转化高',keys:['耳机','蓝牙耳机','降噪耳机','earbuds','headphones']},
+{cat:'Electronics > Portable Speakers',name:'便携音箱',desc:'蓝牙音箱/防水音箱，客单价$15-50，户外场景驱动，视频种草效果好',keys:['音箱','蓝牙音箱','speaker']},
+{cat:'Home & Kitchen > Kitchen & Dining > Cookware',name:'厨具',desc:'锅具/刀具/砧板，客单价$15-50，全年常青，退货率低',keys:['锅','刀','砧板','cookware','knife']},
+{cat:'Home & Kitchen > Kitchen & Dining > Utensils',name:'餐具',desc:'餐具/杯子/碗碟，客单价$8-25，POD模式适合，Q4圣诞季高峰',keys:['餐具','杯子','碗','utensils','dinnerware']},
+{cat:'Home & Kitchen > Kitchen & Dining > Small Appliances',name:'厨房小电',desc:'咖啡机/烤箱/空气炸锅，客单价$30-100，视频评测转化高',keys:['咖啡机','烤箱','空气炸锅','coffee maker','air fryer']},
+{cat:'Home & Kitchen > Storage & Organization',name:'收纳整理',desc:'收纳箱/衣架/置物架，1-2月新年收纳季高峰，客单价$10-40',keys:['收纳','整理','衣架','storage','organizer']},
+{cat:'Home & Kitchen > Bedding > Sheets',name:'床单床品',desc:'床单/被套/枕套，客单价$20-60，退货率中等，注意尺寸标注准确',keys:['床单','被套','床品','sheets','bedding']},
+{cat:'Home & Kitchen > Bath > Towels',name:'毛巾浴巾',desc:'毛巾/浴巾/浴袍，客单价$8-25，复购率高，全年常青',keys:['毛巾','浴巾','towel']},
+{cat:'Home & Kitchen > Decor > Vases',name:'花瓶',desc:'花瓶/装饰瓶，客单价$10-25，POD模式适合，季节性强',keys:['花瓶','vase']},
+{cat:'Home & Kitchen > Decor > Throw Pillows',name:'抱枕',desc:'抱枕/靠垫，客单价$8-20，POD模式零库存，季节性强',keys:['抱枕','靠垫','pillow']},
+{cat:'Home & Kitchen > Decor > Wall Art',name:'墙面装饰',desc:'壁画/挂画/墙贴，客单价$10-30，POD模式零库存，Pinterest种草效果好',keys:['壁画','挂画','墙贴','wall art']},
+{cat:'Beauty & Personal Care > Makeup > Brushes',name:'化妆刷',desc:'化妆刷/美妆蛋，客单价$10-25，视频种草转化率高，注意FDA合规',keys:['化妆刷','美妆蛋','makeup brush']},
+{cat:'Beauty & Personal Care > Skin Care',name:'护肤',desc:'面膜/精华/面霜，客单价$15-50，复购率极高，注意FDA合规',keys:['护肤','面膜','精华','skincare','face mask']},
+{cat:'Beauty & Personal Care > Hair Care',name:'美发工具',desc:'梳子/吹风机/卷发棒，客单价$10-40，YouTube教程引流',keys:['梳子','吹风机','卷发棒','hair brush','hair dryer']},
+{cat:'Toys & Games > Stuffed Animals',name:'毛绒玩具',desc:'毛绒玩具/公仔，客单价$10-25，Q4圣诞季爆发，TikTok萌宠视频天然传播',keys:['毛绒玩具','公仔','plush','stuffed animal']},
+{cat:'Toys & Games > Building Toys',name:'积木玩具',desc:'积木/拼插玩具，客单价$15-50，Q4圣诞季高峰，注意CPC认证',keys:['积木','拼插','building blocks']},
+{cat:'Toys & Games > Puzzles',name:'拼图',desc:'拼图/桌游，客单价$10-25，成人解压需求增长，Pinterest种草效果好',keys:['拼图','桌游','puzzle']},
+{cat:'Toys & Games > Remote Control Toys',name:'遥控玩具',desc:'遥控车/无人机，客单价$20-80，Q4圣诞季高峰，男孩玩具为主',keys:['遥控','遥控车','无人机','rc car']},
+{cat:'Clothing, Shoes & Jewelry > Women > Clothing',name:'女装',desc:'女装/连衣裙/T恤，退货率高达20-30%，尺码是痛点，POD零库存',keys:['女装','连衣裙','T恤','women clothing']},
+{cat:'Clothing, Shoes & Jewelry > Men > Clothing',name:'男装',desc:'男装/Polo/衬衫，退货率中等，客单价$15-50',keys:['男装','Polo','衬衫','men clothing']},
+{cat:'Clothing, Shoes & Jewelry > Jewelry > Necklaces',name:'项链',desc:'项链/吊坠，客单价$10-30，POD模式适合，Q4圣诞季高峰',keys:['项链','necklace']},
+{cat:'Clothing, Shoes & Jewelry > Jewelry > Earrings',name:'耳环',desc:'耳环/耳钉，客单价$8-20，POD模式适合，Q4圣诞季高峰',keys:['耳环','耳钉','earring']},
+{cat:'Clothing, Shoes & Jewelry > Watches',name:'手表',desc:'手表/智能手表，客单价$20-100，YouTube评测转化高',keys:['手表','智能手表','watch']},
+{cat:'Pet Supplies > Dogs > Toys',name:'狗玩具',desc:'狗玩具/磨牙棒，客单价$8-20，复购率高，萌宠内容天然传播',keys:['狗玩具','dog toy']},
+{cat:'Pet Supplies > Dogs > Beds',name:'狗窝',desc:'狗窝/狗床，客单价$15-40，复购率高，注意尺寸标注准确',keys:['狗窝','dog bed']},
+{cat:'Pet Supplies > Cats > Toys',name:'猫玩具',desc:'猫玩具/猫抓板，客单价$8-20，复购率高，猫内容在社交媒体传播广',keys:['猫玩具','cat toy']},
+{cat:'Pet Supplies > Cats > Litter',name:'猫砂',desc:'猫砂/猫砂盆，客单价$10-30，复购率极高，注意重量和物流成本',keys:['猫砂','litter']},
+{cat:'Sports & Outdoors > Exercise & Fitness > Yoga',name:'瑜伽用品',desc:'瑜伽垫/瑜伽砖，客单价$10-30，1-2月新年健身季高峰',keys:['瑜伽','瑜伽垫','yoga mat']},
+{cat:'Sports & Outdoors > Outdoor Recreation > Camping',name:'露营装备',desc:'帐篷/睡袋/露营灯，客单价$20-100，3-9月旺季，视频展示转化高',keys:['露营','帐篷','睡袋','camping']},
+{cat:'Automotive > Interior Accessories',name:'汽车内饰',desc:'坐垫/方向盘套/车载收纳，客单价$10-40，车型词精准',keys:['汽车','车载','坐垫','car interior']},
+{cat:'Patio, Lawn & Garden > Gardening > Tools',name:'园艺工具',desc:'园艺工具/花盆/浇水壶，客单价$10-40，3-6月旺季，欧美家庭刚需',keys:['园艺','花盆','浇水','garden']},
+{cat:'Arts, Crafts & Sewing > Posters & Prints',name:'海报版画',desc:'海报/挂画/装饰画，客单价$10-30，POD模式零库存，Pinterest种草效果好',keys:['海报','挂画','poster','wall art']},
+{cat:'Office Products > Stationery',name:'办公文具',desc:'文具/笔记本/文件夹，客单价$8-25，全年常青',keys:['文具','笔记本','文件夹','stationery']},
+{cat:'Baby Products > Nursery > Bedding',name:'母婴床品',desc:'婴儿床品/睡袋，客单价$15-40，安全合规要求极高',keys:['婴儿','宝宝','baby bedding']},
+{cat:'Health & Household > Health Care',name:'健康护理',desc:'体重秤/温度计，客单价$10-30，复购率高，注意FDA合规',keys:['体重秤','温度计','scale','thermometer']},
+{cat:'Luggage & Travel Gear > Luggage',name:'旅行箱包',desc:'行李箱/背包，客单价$20-100，暑假/圣诞旺季',keys:['行李箱','背包','luggage','backpack']},
+{cat:'Camera & Photo > Accessories',name:'摄影配件',desc:'三脚架/相机包/镜头盖，客单价$10-50，YouTube评测转化高',keys:['相机','三脚架','tripod']},
+{cat:'Computers & Accessories > Keyboards',name:'键盘',desc:'机械键盘/无线键盘，客单价$15-50，办公人群刚需',keys:['键盘','keyboard']},
+{cat:'Computers & Accessories > Mice',name:'鼠标',desc:'无线鼠标/游戏鼠标，客单价$10-30，办公人群刚需',keys:['鼠标','mouse']},
+{cat:'Musical Instruments',name:'乐器',desc:'吉他/尤克里里/口琴，客单价$20-100，YouTube教程引流',keys:['吉他','尤克里里','guitar']},
+{cat:'Grocery & Gourmet Food > Snacks',name:'零食',desc:'零食/坚果/糖果，客单价$8-20，复购率极高，注意食品认证',keys:['零食','坚果','snack']},
+{cat:'Video Games > Accessories',name:'游戏配件',desc:'手柄/耳机/充电底座，客单价$15-50，Q4圣诞季高峰',keys:['游戏','手柄','controller']},
+{cat:'Tools & Home Improvement > Power & Hand Tools',name:'手动工具',desc:'螺丝刀/扳手/锤子，客单价$10-40，男性受众为主',keys:['工具','螺丝刀','扳手','tool']},
+{cat:'Industrial & Scientific',name:'工业科学',desc:'实验室设备/安全防护，客单价$20-200，B端为主，复购稳定',keys:['工业','实验室','industrial']},
+{cat:'Office Products > Office Electronics',name:'办公电子',desc:'打印机/扫描仪，客单价$50-200，B端为主',keys:['打印机','扫描','printer']},
+{cat:'Home & Kitchen > Heating, Cooling & Air Quality',name:'家电',desc:'风扇/加湿器/空气净化器，客单价$20-80，季节性强',keys:['风扇','加湿器','空气净化器','fan']},
+{cat:'Sports & Outdoors > Cycling',name:'骑行',desc:'自行车配件/骑行装备，客单价$10-50，男性受众为主',keys:['自行车','骑行','bike']},
+{cat:'Toys & Games > Games',name:'桌游',desc:'桌游/卡牌游戏，客单价$15-40，成人解压需求增长',keys:['桌游','卡牌','board game']},
+{cat:'Clothing, Shoes & Jewelry > Shoes',name:'鞋类',desc:'运动鞋/休闲鞋，客单价$20-60，退货率中等',keys:['鞋','运动鞋','shoes']},
+{cat:'Clothing, Shoes & Jewelry > Bags',name:'包包',desc:'手提包/背包/钱包，客单价$15-50，POD模式适合',keys:['包','手提包','钱包','handbag']},
+{cat:'Beauty & Personal Care > Shaving',name:'剃须',desc:'剃须刀/剃须膏，客单价$10-30，男性受众为主，复购率高',keys:['剃须刀','剃须','shaver']},
+{cat:'Arts, Crafts & Sewing > Sewing',name:'缝纫',desc:'缝纫机/针线包，客单价$15-50，DIY爱好者受众',keys:['缝纫机','针线','sewing']},
+{cat:'Home & Kitchen > Cookware > Baking',name:'烘焙',desc:'烘焙工具/模具，客单价$10-30，Q4圣诞季高峰',keys:['烘焙','模具','baking']},
+{cat:'Sports & Outdoors > Water Sports',name:'水上运动',desc:'泳装/浮潜装备，客单价$15-50，夏季旺季',keys:['游泳','浮潜','swim']},
+{cat:'Toys & Games > Educational Toys',name:'早教玩具',desc:'早教机/积木/拼图，客单价$15-40，妈妈群体复购率高',keys:['早教','益智','educational toy']},
+{cat:'Pet Supplies > Fish & Aquatic Pets',name:'水族',desc:'鱼缸/鱼食/过滤器，客单价$10-50，小众但精准',keys:['鱼缸','鱼','aquarium']},
+{cat:'Automotive > Exterior Accessories',name:'汽车外饰',desc:'车贴/雨挡/行李架，客单价$10-40，车型词精准',keys:['车贴','雨挡','car exterior']},
+{cat:'Home & Kitchen > Lazy Susans',name:'转盘',desc:'厨房转盘/收纳转盘，客单价$10-25，收纳类细分品类',keys:['转盘','收纳转盘','lazy susan']},
+{cat:'Home & Kitchen > Drawer Organizers',name:'抽屉收纳',desc:'抽屉分隔板/收纳盒，客单价$10-25，收纳类细分品类',keys:['抽屉','收纳','drawer organizer']},
+{cat:'Office Products > Desk Accessories',name:'桌面收纳',desc:'桌面收纳盒/笔筒，客单价$10-25，办公人群刚需',keys:['桌面','笔筒','desk organizer']},
+{cat:'Baby Products > Feeding',name:'喂养用品',desc:'奶瓶/奶嘴/餐具，客单价$10-25，安全合规要求极高',keys:['奶瓶','奶嘴','baby feeding']},
+{cat:'Health & Household > Medical Supplies',name:'医疗用品',desc:'绷带/消毒用品，客单价$8-20，注意FDA合规',keys:['绷带','消毒','medical']},
+{cat:'Luggage & Travel Gear > Travel Accessories',name:'旅行配件',desc:'旅行枕/收纳袋/转换插头，客单价$10-30，暑假旺季',keys:['旅行枕','收纳袋','travel accessory']},
+{cat:'Camera & Photo > Camera Bags',name:'相机包',desc:'相机包/摄影包，客单价$15-50，YouTube评测转化高',keys:['相机包','camera bag']},
+{cat:'Computers & Accessories > Laptop Bags',name:'电脑包',desc:'电脑包/内胆包，客单价$15-40，办公人群刚需',keys:['电脑包','laptop bag']},
+{cat:'Musical Instruments > Accessories',name:'乐器配件',desc:'吉他弦/拨片/调音器，客单价$8-25，复购率高',keys:['吉他弦','拨片','guitar string']},
+{cat:'Grocery & Gourmet Food > Beverages',name:'饮品',desc:'咖啡/茶/果汁，客单价$10-25，复购率极高，注意食品认证',keys:['咖啡','茶','coffee','tea']},
+{cat:'Video Games > Consoles',name:'游戏主机',desc:'PS5/Xbox/Switch，客单价$200-500，Q4圣诞季高峰',keys:['PS5','Xbox','Switch','console']},
+{cat:'Tools & Home Improvement > Paint',name:'油漆涂料',desc:'墙面漆/木器漆，客单价$20-60，DIY装修人群',keys:['油漆','涂料','paint']},
+{cat:'Industrial & Scientific > Lab Supplies',name:'实验室耗材',desc:'试管/烧杯/手套，客单价$10-30，B端为主，复购稳定',keys:['试管','烧杯','lab']},
+{cat:'Office Products > Printers',name:'打印机',desc:'打印机/墨盒，客单价$50-200，B端为主',keys:['打印机','墨盒','printer']},
+{cat:'Home & Kitchen > Vacuums',name:'吸尘器',desc:'吸尘器/扫地机器人，客单价$50-200，视频评测转化高',keys:['吸尘器','扫地机','vacuum']},
+{cat:'Sports & Outdoors > Winter Sports',name:'冬季运动',desc:'滑雪装备/冰鞋，客单价$20-80，冬季旺季',keys:['滑雪','冰鞋','ski']},
+{cat:'Toys & Games > Dolls',name:'娃娃',desc:'芭比娃娃/换装娃娃，客单价$15-40，女孩玩具为主，Q4圣诞季高峰',keys:['娃娃','芭比','doll']},
+{cat:'Clothing, Shoes & Jewelry > Activewear',name:'运动服',desc:'瑜伽服/运动内衣，客单价$15-40，健身人群刚需',keys:['运动服','瑜伽服','activewear']},
+{cat:'Beauty & Personal Care > Nail Polish',name:'美甲',desc:'指甲油/美甲工具，客单价$8-20，复购率高，视频种草效果好',keys:['指甲油','美甲','nail polish']},
+{cat:'Arts, Crafts & Sewing > Drawing',name:'绘画',desc:'画材/素描本/颜料，客单价$10-30，DIY爱好者受众',keys:['画','素描','颜料','drawing']},
+{cat:'Home & Kitchen > Coasters',name:'杯垫',desc:'杯垫/隔热垫，客单价$8-15，POD模式适合，Q4圣诞季高峰',keys:['杯垫','隔热垫','coaster']},
+{cat:'Home & Kitchen > Aprons',name:'围裙',desc:'围裙/烘焙围裙，客单价$8-20，POD模式适合',keys:['围裙','apron']},
+{cat:'Pet Supplies > Dogs > Collars',name:'狗项圈',desc:'狗项圈/牵引绳，客单价$8-20，复购率高，萌宠内容传播广',keys:['狗项圈','牵引绳','dog collar']},
+{cat:'Automotive > Tires',name:'轮胎',desc:'轮胎/内胎，客单价$30-100，车型词精准',keys:['轮胎','tire']},
+{cat:'Tools & Home Improvement > Plumbing',name:'水暖',desc:'水龙头/花洒/水管，客单价$10-40，DIY装修人群',keys:['水龙头','花洒','plumbing']},
+{cat:'Office Products > Calendars',name:'日历',desc:'日历/计划本，客单价$10-25，1月新年高峰，POD模式适合',keys:['日历','计划本','calendar']},
+{cat:'Baby Products > Travel Gear',name:'母婴出行',desc:'婴儿车/安全座椅，客单价$50-150，安全合规要求极高',keys:['婴儿车','安全座椅','stroller']},
+{cat:'Health & Household > Vision Care',name:'护眼',desc:'眼镜/护眼贴，客单价$15-40，注意FDA合规',keys:['眼镜','护眼','eyewear']},
+{cat:'Luggage & Travel Gear > Travel Bags',name:'旅行袋',desc:'旅行袋/ Duffel包，客单价$20-50，暑假旺季',keys:['旅行袋','duffel','travel bag']},
+{cat:'Camera & Photo > Tripods',name:'三脚架',desc:'三脚架/自拍杆，客单价$15-40，YouTube评测转化高',keys:['三脚架','自拍杆','tripod']},
+{cat:'Computers & Accessories > Chargers',name:'电脑充电器',desc:'笔记本充电器/扩展坞，客单价$15-40，办公人群刚需',keys:['充电器','扩展坞','charger']},
+{cat:'Musical Instruments > Wind',name:'管乐',desc:'口琴/竖笛，客单价$10-30，入门乐器，小众但精准',keys:['口琴','竖笛','harmonica']},
+{cat:'Grocery & Gourmet Food > Condiments',name:'调味品',desc:'酱料/蜂蜜/果酱，客单价$8-20，复购率极高，注意食品认证',keys:['蜂蜜','果酱','sauce']},
+{cat:'Video Games > Gaming Chairs',name:'电竞椅',desc:'电竞椅/办公椅，客单价$50-150，游戏人群刚需',keys:['电竞椅','游戏椅','gaming chair']},
+{cat:'Tools & Home Improvement > Electrical',name:'电工',desc:'开关/插座/电线，客单价$10-30，DIY装修人群',keys:['开关','插座','electrical']},
+{cat:'Industrial & Scientific > Safety',name:'安全防护',desc:'手套/护目镜/安全帽，客单价$10-30，B端为主，复购稳定',keys:['手套','护目镜','safety']},
+{cat:'Home & Kitchen > Heaters',name:'取暖器',desc:'暖风机/电热毯，客单价$20-60，冬季旺季',keys:['取暖器','电热毯','heater']},
+{cat:'Sports & Outdoors > Fishing',name:'钓鱼',desc:'鱼竿/鱼线/鱼饵，客单价$10-50，男性受众为主',keys:['鱼竿','钓鱼','fishing']},
+{cat:'Toys & Games > Outdoor Play',name:'户外玩具',desc:'滑梯/秋千/沙池，客单价$20-80，夏季旺季',keys:['滑梯','秋千','sandbox']},
+{cat:'Clothing, Shoes & Jewelry > Underwear',name:'内衣',desc:'内裤/袜子，客单价$8-20，复购率高，注意尺码标注',keys:['内裤','袜子','underwear']},
+{cat:'Beauty & Personal Care > Oral Care',name:'口腔护理',desc:'牙刷/牙膏/漱口水，客单价$8-20，复购率极高，注意FDA合规',keys:['牙刷','牙膏','toothbrush']},
+{cat:'Arts, Crafts & Sewing > Jewelry Making',name:'串珠',desc:'串珠/DIY首饰材料，客单价$10-25，DIY爱好者受众',keys:['串珠','首饰材料','beads']},
+{cat:'Home & Kitchen > Kitchen Rugs',name:'厨房地垫',desc:'厨房地垫/防滑垫，客单价$10-25，全年常青',keys:['地垫','防滑垫','rug']},
+{cat:'Home & Kitchen > Curtains',name:'窗帘',desc:'窗帘/遮光帘，客单价$15-40，全年常青',keys:['窗帘','遮光帘','curtain']},
+{cat:'Pet Supplies > Birds',name:'鸟类',desc:'鸟笼/鸟食/鸟玩具，客单价$10-30，小众但精准',keys:['鸟笼','鸟食','bird']},
+{cat:'Automotive > RV Parts',name:'房车配件',desc:'房车配件/露营车装备，客单价$15-50，小众但精准',keys:['房车','rv','camper']},
+{cat:'Tools & Home Improvement > Hardware',name:'五金',desc:'螺丝/螺母/合页，客单价$5-15，复购率高，B端为主',keys:['螺丝','螺母','hardware']},
+{cat:'Office Products > Desk Chairs',name:'办公椅',desc:'办公椅/人体工学椅，客单价$50-150，办公人群刚需',keys:['办公椅','desk chair']},
+{cat:'Baby Products > Bathing',name:'母婴洗澡',desc:'婴儿浴盆/洗澡玩具，客单价$10-25，妈妈群体复购率高',keys:['婴儿浴盆','洗澡玩具','baby bath']},
+{cat:'Health & Household > First Aid',name:'急救',desc:'急救包/创可贴，客单价$8-20，注意FDA合规',keys:['急救包','创可贴','first aid']},
+{cat:'Luggage & Travel Gear > Luggage Tags',name:'行李牌',desc:'行李牌/姓名牌，客单价$5-15，POD模式适合，Q4圣诞季高峰',keys:['行李牌','luggage tag']},
+{cat:'Camera & Photo > Memory Cards',name:'存储卡',desc:'SD卡/U盘，客单价$10-30，复购率高，注意正品认证',keys:['存储卡','SD卡','memory card']},
+{cat:'Computers & Accessories > Mouse Pads',name:'鼠标垫',desc:'鼠标垫/桌垫，客单价$8-20，POD模式适合，办公人群刚需',keys:['鼠标垫','mouse pad']},
+{cat:'Musical Instruments > Strings',name:'弦乐',desc:'吉他弦/小提琴弦，客单价$8-20，复购率高，乐手刚需',keys:['吉他弦','小提琴弦','guitar string']},
+{cat:'Grocery & Gourmet Food > Baking Supplies',name:'烘焙原料',desc:'面粉/糖/巧克力，客单价$8-20，复购率高，注意食品认证',keys:['面粉','巧克力','baking']},
+{cat:'Video Games > Headsets',name:'游戏耳机',desc:'游戏耳机/麦克风，客单价$20-50，游戏人群刚需',keys:['游戏耳机','gaming headset']},
+{cat:'Tools & Home Improvement > Measuring',name:'测量',desc:'卷尺/水平仪/激光尺，客单价$10-30，DIY装修人群',keys:['卷尺','水平仪','measuring']},
+{cat:'Industrial & Scientific > Lab Equipment',name:'实验室设备',desc:'显微镜/离心机，客单价$50-200，B端为主，复购稳定',keys:['显微镜','离心机','lab equipment']},
+{cat:'Home & Kitchen > Decor > Candles',name:'蜡烛',desc:'香薰蜡烛/装饰蜡烛，客单价$10-25，POD模式适合，Q4圣诞季高峰',keys:['蜡烛','香薰蜡烛','candle']}
+];
+// 智能匹配
 let result=null;
 const q=t.trim().toLowerCase();
-// 先精确匹配key
-for(const[catId,cat]of Object.entries(cats)){
-if(cat.keys.some(k=>q===k.toLowerCase()||q.includes(k.toLowerCase()))){
-result={catId,cat};
-break;
+// 1. 精确匹配
+for(const item of db){
+if(item.keys.some(k=>q===k.toLowerCase())){result=item;break;}
 }
-}
-// 模糊匹配：关键词包含产品名或产品名包含关键词
+// 2. 包含匹配
 if(!result){
-for(const[catId,cat]of Object.entries(cats)){
-if(cat.keys.some(k=>k.toLowerCase().includes(q))){
-result={catId,cat};
-break;
+for(const item of db){
+if(item.keys.some(k=>q.includes(k.toLowerCase()))){result=item;break;}
 }
+}
+// 3. 反向包含
+if(!result){
+for(const item of db){
+if(item.keys.some(k=>k.toLowerCase().includes(q)&&q.length>1)){result=item;break;}
 }
 }
 setTimeout(()=>{
-s({cat:result?result.catId+' > '+result.cat.name:'未匹配到具体类目，建议参考亚马逊大类目方向',catName:result?result.cat.name:'通用选品',desc:result?result.cat.desc:'换个更具体的产品名试试，比如"手机壳"而不是"手机"，或直接在亚马逊搜索该产品看Best Sellers所属类目',product:t.trim()});
+s({cat:result?result.cat:'未匹配到具体类目，建议换更具体的关键词（如"手机壳"而非"手机"）',catName:result?result.name:'通用选品',desc:result?result.desc:'换个更具体的产品名试试，或直接在亚马逊搜索该产品看Best Sellers所属类目',product:t.trim()});
 l(!1);
 },500);
 },[t]);
