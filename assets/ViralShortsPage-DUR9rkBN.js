@@ -315,33 +315,128 @@ const[t,n]=(0,J.useState)(''),[a,s]=(0,J.useState)(null),[c,l]=(0,J.useState)(!1
 const r=(0,J.useCallback)(()=>{
 if(!t.trim())return;
 l(!0);
-const m={
-'手机壳':'Electronics > Cell Phones & Accessories > Cases, Covers & Skins > Basic Cases',
-'海报':'Home & Kitchen > Wall Art > Posters & Prints',
-'露营':'Sports & Outdoors > Outdoor Recreation > Camping & Hiking',
-'毛绒玩具':'Toys & Games > Stuffed Animals & Plush Toys',
-'圣诞装饰':'Home & Kitchen > Seasonal Decor > Christmas > Ornaments',
-'宠物':'Pet Supplies > Dogs > Toys',
-'厨房':'Home & Kitchen > Kitchen & Dining',
-'收纳':'Home & Kitchen > Storage & Organization',
-'园艺':'Patio, Lawn & Garden > Gardening & Lawn Care',
-'汽车':'Automotive > Interior Accessories',
-'健身':'Sports & Outdoors > Exercise & Fitness',
-'美妆':'Beauty & Personal Care > Makeup',
-'服装':'Clothing, Shoes & Jewelry > Women > Clothing',
-'玩具':'Toys & Games > Learning & Education',
-'灯具':'Home & Kitchen > Lighting > Lamps & Light Fixtures',
-'桌布':'Home & Kitchen > Kitchen & Dining > Table Linens > Tablecloths'
+const db={
+'手机壳':{cat:'Electronics > Cell Phones & Accessories > Cases, Covers & Skins > Basic Cases',tips:['热词：手机壳+型号（iPhone 15 case / Samsung S24 case），别打大词','差异化：全包防摔+磁吸+个性化图案，客单价$8-15','季节：圣诞/情人节/毕业季做限定款，提前45天备货','评论切入点：竞品差评集中在"发黄""沾指纹"，用液态硅胶+抗黄变卖点','广告策略：新品期自动广告跑词，ACoS控制在40%以内，2周后转手动精准']},
+'poster':{cat:'Arts, Crafts & Sewing > Drawing > Drawing Paper > Posters & Prints',tips:['热词：wall art poster / vintage poster / motivational poster，长尾词竞争小','差异化：无框帆布画+高清微喷，客单价$12-25，做组合装（3联画）提客单','季节：开学季（8-9月）、圣诞季（10-11月）是两大高峰','评论切入点：差评集中在"色差大""纸张薄"，用260g纯棉帆布+色彩校准','广告策略：POD模式零库存，主推墙面装饰+客厅场景，Instagram种草引流']},
+'海报':{cat:'Arts, Crafts & Sewing > Drawing > Drawing Paper > Posters & Prints',tips:['热词：wall art poster / vintage poster / motivational poster，长尾词竞争小','差异化：无框帆布画+高清微喷，客单价$12-25，做组合装（3联画）提客单','季节：开学季（8-9月）、圣诞季（10-11月）是两大高峰','评论切入点：差评集中在"色差大""纸张薄"，用260g纯棉帆布+色彩校准','广告策略：POD模式零库存，主推墙面装饰+客厅场景，Instagram种草引流']},
+'露营':{cat:'Sports & Outdoors > Outdoor Recreation > Camping & Hiking > Camping & Hiking Equipment',tips:['热词：camping gear / camping accessories / camping essentials，避开大词','差异化：轻量化+便携套装（帐篷+睡袋+收纳袋组合），客单价$30-80','季节：3-9月是旺季，提前2个月备货，Q4做圣诞送礼场景','评论切入点：差评集中在"防水差""太重"，用210T涤纶+防水涂层+轻量化设计','广告策略：户外论坛+Instagram红人合作，视频展示露营场景转化高']},
+'毛绒玩具':{cat:'Toys & Games > Stuffed Animals & Plush Toys > Stuffed Animals & Teddy Bears',tips:['热词：plush toy / stuffed animal / cute plush，结合动画IP做周边','差异化：软萌+可水洗+安全材质，客单价$10-20，做盲盒系列提复购','季节：情人节（2月）、圣诞（12月）是高峰，提前60天备货','评论切入点：差评集中在"掉毛""有异味"，用短毛绒+环保填充+质检报告','广告策略：TikTok短视频种草，萌宠类内容天然高传播，配合#plushie标签']},
+'圣诞装饰':{cat:'Home & Kitchen > Seasonal Decor > Christmas > Ornaments',tips:['热词：christmas ornaments / xmas decorations / holiday decor，别打大词','差异化：LED发光+异形设计+可定制，客单价$8-20，做套装提客单','季节：10-12月是唯一旺季，8月底必须入仓，11月开始投广告','评论切入点：差评集中在"灯不亮""容易碎"，用LED灯珠+防摔包装+备用电池','广告策略：黑五网一集中爆发，Deal站+站外红人配合，Listing提前1个月优化']},
+'宠物':{cat:'Pet Supplies > Dogs > Toys',tips:['热词：dog toys / puppy toys / indestructible dog toy，功能词转化高','差异化：耐咬+发声+互动设计，客单价$10-25，做组合装提客单','季节：全年常青，Q4圣诞送礼季是高峰','评论切入点：差评集中在"咬两下就坏""有异味"，用天然橡胶+无毒材质+耐咬测试','广告策略：TikTok萌宠视频自带流量，配合#dogsoftiktok标签，转化率比文字广告高3倍']},
+'厨房':{cat:'Home & Kitchen > Kitchen & Dining > Kitchen Utensils & Gadgets',tips:['热词：kitchen gadgets / cooking tools / kitchen accessories，场景词转化高','差异化：硅胶+不锈钢+高颜值，客单价$8-18，做套装提客单','季节：全年常青，感恩节（11月）+圣诞是高峰','评论切入点：差评集中在"不好用""沾油"，用食品级硅胶+不粘锅专用+易清洗设计','广告策略：厨房演示视频转化率高，YouTube Shorts+TikTok双平台种草']},
+'收纳':{cat:'Home & Kitchen > Storage & Organization > Storage Bins & Baskets',tips:['热词：storage bins / closet organizer / storage boxes，场景词为主','差异化：可折叠+透明视窗+堆叠设计，客单价$12-30，做套装提客单','季节：1-2月新年收纳季、9月开学季是两大高峰','评论切入点：差评集中在"太软""尺寸小"，用加厚PP材质+真实尺寸标注','广告策略：收纳前后对比图转化率极高，Pinterest+Instagram图片种草']},
+'园艺':{cat:'Patio, Lawn & Garden > Gardening & Lawn Care > Gardening Tools',tips:['热词：garden tools / gardening kit / garden accessories，功能词为主','差异化：不锈钢+木柄+园艺套装，客单价$15-35，做礼盒装提客单','季节：3-6月春季是旺季，提前2个月备货','评论切入点：差评集中在"生锈""手柄断"，用不锈钢+防滑木柄+加固连接处','广告策略：园艺博客+Instagram园艺红人合作，视频展示使用场景']},
+'汽车':{cat:'Automotive > Interior Accessories > Seat Covers',tips:['热词：car seat cover / car accessories / car organizer，车型词为主','差异化：通用型+耐磨+易安装，客单价$20-50，做全车套装提客单','季节：全年常青，Q4圣诞送礼季是高峰','评论切入点：差评集中在"不服帖""气味大"，用透气面料+3D剪裁+环保材质','广告策略：YouTube汽车评测+论坛种草，配合车型关键词精准投放']},
+'健身':{cat:'Sports & Outdoors > Exercise & Fitness > Exercise & Fitness Equipment',tips:['热词：resistance bands / yoga mat / workout equipment，功能词为主','差异化：加厚+防滑+便携，客单价$10-30，做套装提客单','季节：1-2月新年健身季是最大高峰，提前备货','评论切入点：差评集中在"异味""弹性差"，用TPE环保材质+加厚防滑+质检报告','广告策略：健身博主合作+短视频展示动作，转化率比图片广告高2倍']},
+'美妆':{cat:'Beauty & Personal Care > Makeup > Makeup Brushes & Tools',tips:['热词：makeup brush set / beauty sponge / makeup tools，套装词转化高','差异化：软毛+渐变 handle+美妆蛋套装，客单价$10-25','季节：全年常青，Q4圣诞送礼季是高峰','评论切入点：差评集中在"掉毛""扎脸"，用仿生毛+ densely packed+清洗测试','广告策略：美妆博主测评+Instagram种草，前后对比图转化率高']},
+'服装':{cat:'Clothing, Shoes & Jewelry > Women > Clothing > Tops & Tees',tips:['热词：women t-shirt / casual top / summer tee，别打大词','差异化：棉+宽松版型+印花设计，客单价$12-25，做POD零库存','季节：春夏是旺季，提前2个月备货','评论切入点：差评集中在"缩水""印花开裂"，用预缩棉+丝网印刷+洗水测试','广告策略：TikTok穿搭视频+Instagram红人，配合季节性关键词']},
+'灯具':{cat:'Home & Kitchen > Lighting > Lamps & Light Fixtures > Table Lamps',tips:['热词：table lamp / desk lamp / night light，场景词为主','差异化：USB充电+可调光+小夜灯二合一，客单价$15-35','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"亮度不够""充不进电"，用LED护眼+Type-C快充+电池容量标注','广告策略：卧室场景图+YouTube评测，配合home office关键词']},
+'桌布':{cat:'Home & Kitchen > Kitchen & Dining > Table Linens > Tablecloths',tips:['热词：tablecloth / table cover / dining table cloth，场景词为主','差异化：防水防油+可机洗+印花设计，客单价$10-25，做套装提客单','季节：Q4圣诞季+感恩节是高峰','评论切入点：差评集中在"滑""尺寸不准"，用防滑底+真实尺寸+多尺寸可选','广告策略：节日餐桌场景图+Pinterest种草，转化率高']},
+'蜡烛':{cat:'Home & Kitchen > Home Decor > Candles',tips:['热词：scented candle / soy candle / candle gift set，香型词为主','差异化：大豆蜡+天然精油+玻璃杯装，客单价$12-25，做礼盒装提客单','季节：Q4圣诞季是最大高峰，提前60天备货','评论切入点：差评集中在"味淡""烧完有黑边"，用天然大豆蜡+8小时燃烧+烛芯居中','广告策略：氛围感视频+Instagram种草，配合gift set关键词，圣诞季转化率翻倍']},
+'镜子':{cat:'Home & Kitchen > Home Decor > Mirrors',tips:['热词：wall mirror / decorative mirror / full length mirror，场景词为主','差异化：防爆+壁挂+异形设计，客单价$20-50','季节：全年常青，Q4是高峰','评论切入点：差评集中在"易碎""成像变形"，用防爆膜+高清银镜+加固包装','广告策略：卧室/浴室场景图+Pinterest种草，配合home decor关键词']},
+'窗帘':{cat:'Home & Kitchen > Window Treatments > Curtains & Drapes',tips:['热词：blackout curtains / window curtains / room darkening，功能词为主','差异化：遮光+隔热+可机洗，客单价$15-35，做双片装提客单','季节：全年常青，Q4是高峰','评论切入点：差评集中在"不透光""有褶皱"，用三层织造+真实遮光率+预挂定型','广告策略：前后对比图（白天vs晚上）转化率极高，配合nursery/bedroom关键词']},
+'地毯':{cat:'Home & Kitchen > Rugs, Pads & Mats > Area Rugs',tips:['热词：area rug / washable rug / living room rug，场景词为主','差异化：可机洗+防滑底+短绒设计，客单价$25-60','季节：全年常青，Q4是高峰','评论切入点：差评集中在"滑""掉毛"，用TPR防滑底+短绒不掉毛+可机洗','广告策略：客厅场景图+YouTube评测，配合living room decor关键词']},
+'花瓶':{cat:'Home & Kitchen > Home Decor > Vases',tips:['热词：vase / flower vase / decorative vase，场景词为主','差异化：陶瓷+透明玻璃+异形设计，客单价$10-25，做套装提客单','季节：Q4圣诞季是高峰','评论切入点：差评集中在"色差大""易碎"，用高清实拍+加厚包装+易碎品保险','广告策略：花艺搭配图+Pinterest种草，配合centerpiece关键词']},
+'抱枕':{cat:'Home & Kitchen > Bedding > Bed Pillows',tips:['热词：throw pillow covers / decorative pillow cases，场景词为主','差异化：亚麻+天鹅绒+印花设计，客单价$8-15，做4件套提客单','季节：Q4圣诞季是高峰','评论切入点：差评集中在"拉链坏""起球"，用隐形拉链+高密度面料+质检','广告策略：沙发搭配图+Pinterest种草，配合fall decor / christmas decor季节性词']},
+'时钟':{cat:'Home & Kitchen > Home Decor > Wall Clocks',tips:['热词：wall clock / modern clock / decorative clock，风格词为主','差异化：静音+大数字+电池驱动，客单价$12-30','季节：全年常青，Q4是高峰','评论切入点：差评集中在"滴答声大""走时不准"，用静音扫秒+石英机芯+电池寿命标注','广告策略：客厅/办公室场景图+YouTube评测，配合modern decor关键词']},
+'挂钩':{cat:'Home & Kitchen > Storage & Organization > Hooks',tips:['热词：wall hooks / adhesive hooks / towel hooks，功能词为主','差异化：免打孔+防水+承重强，客单价$8-15，做套装提客单','季节：全年常青','评论切入点：差评集中在"掉""粘不牢"，用强力胶+不锈钢+承重测试报告','广告策略：浴室/厨房场景视频，展示粘贴过程和承重效果，转化率高']},
+'置物架':{cat:'Home & Kitchen > Storage & Organization > Shelves',tips:['热词：floating shelves / wall shelves / storage shelves，场景词为主','差异化：免打孔+承重强+可组合，客单价$15-35','季节：全年常青，Q4是高峰','评论切入点：差评集中在"装不牢""晃"，用膨胀螺丝+承重测试+安装视频','广告策略：收纳前后对比图+YouTube安装视频，配合bathroom/kitchen关键词']},
+'灯串':{cat:'Home & Kitchen > Seasonal Decor > String Lights',tips:['热词：fairy lights / string lights / LED lights，场景词为主','差异化：USB充电+防水+8模式，客单价$10-20','季节：Q4圣诞季是最大高峰，提前60天备货','评论切入点：差评集中在"不亮""续航短"，用LED灯珠+USB供电+IP65防水','广告策略：氛围感视频+Instagram种草，配合bedroom decor / christmas decor关键词']},
+'花环':{cat:'Home & Kitchen > Seasonal Decor > Christmas > Wreaths',tips:['热词：christmas wreath / door wreath / holiday wreath，场景词为主','差异化：仿真植物+LED灯+可折叠，客单价$15-35','季节：Q4圣诞季是唯一旺季，8月底必须入仓','评论切入点：差评集中在"稀疏""灯不亮"，用加密仿真+LED灯+备用电池','广告策略：门挂场景图+圣诞季Deal站配合，11月集中投放']},
+'袜子':{cat:'Clothing, Shoes & Jewelry > Women > Clothing > Socks & Hosiery',tips:['热词：women socks / cute socks / cozy socks，风格词为主','差异化：棉+可爱图案+加厚保暖，客单价$8-15，做5双装提客单','季节：Q4秋冬是高峰','评论切入点：差评集中在"起球""袜口松"，用精梳棉+双针袜口+洗水测试','广告策略：穿搭图+Instagram种草，配合cozy / christmas gift关键词']},
+'帽子':{cat:'Clothing, Shoes & Jewelry > Accessories > Hats & Caps',tips:['热词：baseball cap / dad hat / sun hat，风格词为主','差异化：可调节+纯棉+刺绣，客单价$10-20，做POD零库存','季节：春夏是高峰','评论切入点：差评集中在"变形""掉色"，用预洗棉+刺绣+质检报告','广告策略：穿搭图+Instagram红人，配合summer / beach关键词']},
+'手套':{cat:'Clothing, Shoes & Jewelry > Accessories > Gloves & Mittens',tips:['热词：winter gloves / touch screen gloves / warm gloves，功能词为主','差异化：触屏+加绒+防风，客单价$10-20','季节：Q4冬季是唯一旺季，提前60天备货','评论切入点：差评集中在"触屏不灵""不够暖"，用导电触屏+厚绒+防风膜','广告策略：冬季场景图+YouTube评测，配合winter gear / christmas gift关键词']},
+'围巾':{cat:'Clothing, Shoes & Jewelry > Accessories > Scarves & Wraps',tips:['热词：winter scarf / pashmina scarf / knit scarf，风格词为主','差异化：羊毛混纺+格纹+大尺寸，客单价$15-30','季节：Q4冬季是唯一旺季','评论切入点：差评集中在"起球""扎脖子"，用羊毛混纺+柔软内衬+洗水测试','广告策略：穿搭图+Instagram种草，配合fall fashion / christmas gift关键词']},
+'包包':{cat:'Shoes & Bags > Luggage & Bags > Handbags',tips:['热词：tote bag / shoulder bag / crossbody bag，风格词为主','差异化：帆布+真皮+大容量，客单价$20-50','季节：全年常青，Q4是高峰','评论切入点：差评集中在"拉链坏""有异味"，用YKK拉链+环保面料+质检报告','广告策略：穿搭图+Instagram红人，配合everyday bag / work bag关键词']},
+'钱包':{cat:'Shoes & Bags > Luggage & Bags > Wallets',tips:['热词：wallet for women / card holder / slim wallet，功能词为主','差异化：真皮+多卡位+RFID防盗，客单价$12-25','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"卡位紧""掉皮"，用头层牛皮+弹性卡位+质检报告','广告策略：产品特写图+YouTube评测，配合leather wallet / gift for her关键词']},
+'手表':{cat:'Clothing, Shoes & Jewelry > Watches > Wrist Watches',tips:['热词：watch for women / minimalist watch / casual watch，风格词为主','差异化：超薄+真皮表带+防水，客单价$20-50','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"走时不准""表蒙花"，用石英机芯+矿物玻璃+防水测试','广告策略：穿搭图+YouTube评测，配合minimalist / gift for her关键词']},
+'首饰':{cat:'Clothing, Shoes & Jewelry > Jewelry > Necklaces',tips:['热词：necklace for women / dainty necklace / layered necklace，风格词为主','差异化：925银+不掉色+可叠戴，客单价$15-35','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"过敏""掉色"，用925银+镀18K金+防过敏报告','广告策略：穿搭图+Instagram种草，配合dainty jewelry / gift for her关键词']},
+'耳环':{cat:'Clothing, Shoes & Jewelry > Jewelry > Earrings',tips:['热词：hoop earrings / stud earrings / dangle earrings，风格词为主','差异化：925银针+不掉色+多款组合，客单价$10-25，做套装提客单','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"过敏""掉色"，用925银针+镀18K金+防过敏报告','广告策略：穿搭图+Instagram种草，配合earring set / gift for her关键词']},
+'戒指':{cat:'Clothing, Shoes & Jewelry > Jewelry > Rings',tips:['热词：stackable rings / knuckle rings / midi rings，风格词为主','差异化：925银+可叠戴+多尺寸，客单价$10-20，做5件套提客单','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"掉色""变形"，用925银+镀18K金+质检报告','广告策略：手部特写图+Instagram种草，配合stackable rings / gift for her关键词']},
+'眼镜':{cat:'Clothing, Shoes & Jewelry > Accessories > Sunglasses',tips:['热词：sunglasses for women / retro sunglasses / polarized sunglasses，风格词为主','差异化：偏光+UV400+复古款，客单价$12-25','季节：春夏是高峰','评论切入点：差评集中在"镜腿松""压鼻"，用TR90镜框+偏光镜片+人体工学设计','广告策略：穿搭图+Instagram红人，配合summer / beach关键词']},
+'发饰':{cat:'Clothing, Shoes & Jewelry > Accessories > Hair Accessories',tips:['热词：hair clips / hair pins / claw clips，风格词为主','差异化：醋酸板材+大号+组合装，客单价$8-15，做套装提客单','季节：全年常青','评论切入点：差评集中在"夹不紧""掉色"，用醋酸板材+强力弹簧+电镀工艺','广告策略：发型教程视频+TikTok种草，配合hair tutorial / claw clip关键词']},
+'梳子':{cat:'Beauty & Personal Care > Hair Care > Brushes & Combs',tips:['热词：hair brush / detangling brush / paddle brush，功能词为主','差异化：气囊+防静电+按摩梳，客单价$8-15','季节：全年常青','评论切入点：差评集中在"扯头发""掉齿"，用气囊梳+圆头齿+防静电设计','广告策略：梳头演示视频+TikTok种草，配合hair brush / detangling关键词']},
+'镜子2':{cat:'Beauty & Personal Care > Makeup > Makeup Mirrors',tips:['热词：makeup mirror / lighted mirror / vanity mirror，功能词为主','差异化：LED灯+放大镜+USB充电，客单价$15-35','季节：全年常青，Q4是高峰','评论切入点：差评集中在"亮度不够""充不进电"，用LED补光+10倍放大+Type-C快充','广告策略：化妆场景图+YouTube评测，配合vanity / makeup room关键词']},
+'牙刷':{cat:'Beauty & Personal Care > Oral Care > Toothbrushes',tips:['热词：electric toothbrush / sonic toothbrush / travel toothbrush，功能词为主','差异化：声波震动+USB充电+5模式，客单价$15-35','季节：全年常青','评论切入点：差评集中在"噪音大""续航短"，用声波马达+60天续航+充电底座','广告策略：产品评测视频+YouTube，配合oral care / travel关键词']},
+'剃须刀':{cat:'Beauty & Personal Care > Shaving & Grooming > Shavers',tips:['热词：electric shaver / foil shaver / travel shaver，功能词为主','差异化：浮动刀头+防水+USB充电，客单价$20-50','季节：全年常青，Q4圣诞季是高峰','评论切入点：差评集中在"剃不干净""夹毛"，用浮动刀头+双环贴面+防水设计','广告策略：男士护理视频+YouTube评测，配合gifts for him关键词']},
+'体重秤':{cat:'Health & Household > Health Care > Fitness Trackers',tips:['热词：body weight scale / digital scale / bathroom scale，功能词为主','差异化：电子+蓝牙+体脂秤，客单价$15-35','季节：1-2月新年健身季是高峰','评论切入点：差评集中在"不准""电池费"，用高精度传感器+USB充电+APP连接','广告策略：健身场景图+YouTube评测，配合weight loss / new year resolution关键词']},
+'温度计':{cat:'Health & Household > Health Care > Thermometers',tips:['热词：forehead thermometer / infrared thermometer / baby thermometer，功能词为主','差异化：红外+一秒测温+静音，客单价$10-20','季节：Q4冬季是高峰','评论切入点：差评集中在"不准""误报"，用红外传感器+校准报告+婴儿适用','广告策略：家庭场景图+亚马逊主图视频，配合baby care / winter health关键词']},
+'口罩':{cat:'Health & Household > Health Care > Masks',tips:['热词：face mask / disposable mask / cloth mask，功能词为主','差异化：三层过滤+透气+独立包装，客单价$8-15，做50片装提客单','季节：Q4冬季是高峰','评论切入点：差评集中在"有味""勒耳朵"，用三层熔喷布+透气耳带+独立包装','广告策略：家庭囤货场景+Deal站配合，配合winter / cold season关键词']},
+'枕头':{cat:'Home & Kitchen > Bedding > Bed Pillows',tips:['热词：pillow for sleeping / memory foam pillow / cervical pillow，功能词为主','差异化：记忆棉+颈椎支撑+可拆洗，客单价$20-40','季节：全年常青，Q4是高峰','评论切入点：差评集中在"有味""塌陷"，用慢回弹记忆棉+透气面料+质检报告','广告策略：睡眠场景图+YouTube评测，配合sleep better / cervical关键词']},
+'被子':{cat:'Home & Kitchen > Bedding > Comforters & Sets',tips:['热词：duvet insert / comforter / quilt，功能词为主','差异化：大豆纤维+透气+可机洗，客单价$25-60','季节：Q4秋冬是高峰','评论切入点：差评集中在"有味""薄"，用大豆纤维+透气面料+真实克重标注','广告策略：卧室场景图+Pinterest种草，配合cozy bedroom / winter bedding关键词']},
+'床单':{cat:'Home & Kitchen > Bedding > Sheets & Pillowcases',tips:['热词：bed sheets / sheet set / microfiber sheets，功能词为主','差异化：超细纤维+可机洗+不起球，客单价$20-40','季节：全年常青，Q4是高峰','评论切入点：差评集中在"起球""缩水"，用超细纤维+预缩处理+洗水测试','广告策略：卧室场景图+Pinterest种草，配合bedroom decor关键词']},
+'床垫':{cat:'Home & Kitchen > Bedding > Mattress Pads',tips:['热词：mattress topper / mattress pad / memory foam topper，功能词为主','差异化：记忆棉+透气+可拆洗，客单价$30-80','季节：全年常青，Q4是高峰','评论切入点：差评集中在"有味""塌陷"，用慢回弹记忆棉+透气面料+质检报告','广告策略：睡眠场景图+YouTube评测，配合sleep better关键词']},
+'蚊帐':{cat:'Home & Kitchen > Bedding > Bed Canopies & Mosquito Nets',tips:['热词：mosquito net / bed canopy / bed netting，功能词为主','差异化：加密+防蚊+可折叠，客单价$10-25','季节：春夏是高峰','评论切入点：差评集中在"破""有异味"，用加密网眼+环保材质+加固包边','广告策略：卧室场景图+东南亚市场需求，配合bedroom / summer关键词']},
+'婴儿':{cat:'Baby Products > Nursery > Bedding',tips:['热词：baby bedding / crib bedding / nursery bedding，安全词为主','差异化：纯棉+A类标准+无荧光剂，客单价$20-40','季节：全年常青，Q4是高峰','评论切入点：差评集中在"有味""尺寸不准"，用A类纯棉+真实尺寸+质检报告','广告策略：婴儿房场景图+Instagram母婴博主，配合nursery / baby shower关键词']},
+'玩具':{cat:'Toys & Games > Learning & Education > Educational Toys',tips:['热词：building blocks / educational toys / STEM toys，功能词为主','差异化：安全材质+益智+可拼接，客单价$15-35','季节：Q4圣诞季是最大高峰','评论切入点：差评集中在"有异味""小零件"，用ABS安全材质+3C认证+年龄标注','广告策略：儿童玩耍视频+YouTube，配合STEM / christmas gift关键词']},
+'拼图':{cat:'Toys & Games > Puzzles > Jigsaw Puzzles',tips:['热词：jigsaw puzzle / 1000 piece puzzle / adult puzzle，风格词为主','差异化：高清印刷+无灰+环保材质，客单价$10-20','季节：Q4圣诞季是高峰','评论切入点：差评集中在"缺片""色差"，用高清印刷+备片服务+质检报告','广告策略：完成图展示+Pinterest种草，配合adult hobby / christmas gift关键词']},
+'积木':{cat:'Toys & Games > Building Toys > Building Blocks',tips:['热词：building blocks / STEM toys / educational toys，功能词为主','差异化：兼容乐高+大颗粒+安全材质，客单价$15-40','季节：Q4圣诞季是最大高峰','评论切入点：差评集中在"有异味""拼不上"，用ABS安全材质+兼容乐高+质检报告','广告策略：搭建视频+YouTube，配合STEM / christmas gift关键词']},
+'遥控':{cat:'Toys & Games > Remote Control Toys > RC Cars',tips:['热词：rc car / remote control car / off road rc，功能词为主','差异化：越野+防水+2.4G遥控，客单价$20-50','季节：Q4圣诞季是最大高峰','评论切入点：差评集中在"续航短""易坏"，用充电电池+防水设计+备用配件','广告策略：越野视频+YouTube，配合boys toys / christmas gift关键词']},
+'无人机':{cat:'Toys & Games > Hobbies > Remote & App Controlled Vehicles',tips:['热词：drone for kids / mini drone / RC drone，功能词为主','差异化：迷你+防撞+易操作，客单价$20-50','季节：Q4圣诞季是最大高峰','评论切入点：差评集中在"飞不稳""续航短"，用定高+防撞圈+15分钟续航','广告策略：飞行视频+YouTube，配合kids toys / christmas gift关键词']},
+'相机':{cat:'Electronics > Camera & Photo > Digital Cameras',tips:['热词：digital camera / kids camera / mini camera，功能词为主','差异化：迷你+高清+自拍，客单价$15-35','季节：Q4圣诞季是最大高峰','评论切入点：差评集中在"模糊""充电慢"，用1080P高清+Type-C快充+硅胶防摔','广告策略：拍照效果展示+YouTube，配合kids camera / christmas gift关键词']},
+'音箱':{cat:'Electronics > Headphones & Earbuds > Portable Speakers',tips:['热词：bluetooth speaker / portable speaker / waterproof speaker，功能词为主','差异化：防水+低音+长续航，客单价$15-35','季节：春夏户外季是高峰','评论切入点：差评集中在"音量小""续航短"，用双喇叭+IPX7防水+12小时续航','广告策略：户外场景视频+YouTube，配合bluetooth / outdoor关键词']},
+'耳机':{cat:'Electronics > Headphones & Earbuds > In-Ear Headphones',tips:['热词：wireless earbuds / bluetooth earbuds / TWS earbuds，功能词为主','差异化：降噪+防水+长续航，客单价$20-50','季节：全年常青，Q4是高峰','评论切入点：差评集中在"连接不稳""续航短"，用蓝牙5.3+IPX5防水+24小时总续航','广告策略：音质评测+YouTube，配合wireless / workout关键词']},
+'充电':{cat:'Electronics > Accessories & Supplies > Chargers & Power Adapters',tips:['热词：charging cable / fast charger / USB charger，功能词为主','差异化：快充+编织线+多口，客单价$8-20，做套装提客单','季节：全年常青','评论切入点：差评集中在"充电慢""易坏"，用Type-C快充+尼龙编织+质保1年','广告策略：产品评测+YouTube，配合fast charging / travel关键词']},
+'支架':{cat:'Electronics > Accessories & Supplies > Stands',tips:['热词：phone stand / tablet stand / adjustable stand，功能词为主','差异化：铝合金+可调节+防滑，客单价$8-15','季节：全年常青','评论切入点：差评集中在"晃""夹不紧"，用铝合金+加重底座+硅胶防滑','广告策略：桌面场景图+YouTube，配合desk setup / work from home关键词']},
+'鼠标':{cat:'Computers & Tablets > Accessories > Mice',tips:['热词：wireless mouse / ergonomic mouse / silent mouse，功能词为主','差异化：静音+人体工学+可充电，客单价$10-20','季节：全年常青','评论切入点：差评集中在"滚轮坏""漂"，用光学传感器+静音按键+充电底座','广告策略：办公场景图+YouTube，配合ergonomic / work from home关键词']},
+'键盘':{cat:'Computers & Tablets > Accessories > Keyboards',tips:['热词：wireless keyboard / mechanical keyboard / bluetooth keyboard，功能词为主','差异化：静音+蓝牙+可充电，客单价$15-35','季节：全年常青，Q4是高峰','评论切入点：差评集中在"连击""断连"，用剪刀脚结构+蓝牙5.0+充电底座','广告策略：桌面场景图+YouTube，配合desk setup / work from home关键词']},
+'电脑包':{cat:'Computers & Tablets > Bags & Sleeves > Laptop Bags',tips:['热词：laptop sleeve / laptop bag / computer bag，功能词为主','差异化：防震+防水+多口袋，客单价$15-30','季节：全年常青，Q4是高峰','评论切入点：差评集中在"尺寸不准""拉链坏"，用加厚防震+真实尺寸+YKK拉链','广告策略：通勤场景图+Instagram，配合work from home / college关键词']},
+'显示器':{cat:'Electronics > Computers & Tablets > Monitors',tips:['热词：computer monitor / desktop monitor / gaming monitor，功能词为主','差异化：高清+护眼+窄边框，客单价$80-200','季节：全年常青，Q4是高峰','评论切入点：差评集中在"漏光""坏点"，用IPS面板+防蓝光+质检报告','广告策略：桌面setup图+YouTube评测，配合workstation / gaming关键词']},
+'硬盘':{cat:'Electronics > Data Storage > External Hard Drives',tips:['热词：external hard drive / portable SSD / USB drive，功能词为主','差异化：高速+便携+防水，客单价$20-60','季节：全年常青','评论切入点：差评集中在"坏""速度慢"，用USB3.2+防震+质保3年','广告策略：产品评测+YouTube，配合storage / backup关键词']},
+'路由器':{cat:'Electronics > Networking Products > Routers',tips:['热词：wifi router / gaming router / mesh router，功能词为主','差异化：千兆+信号强+易安装，客单价$30-80','季节：全年常青','评论切入点：差评集中在"信号差""发热"，用千兆WiFi6+散热设计+APP管理','广告策略：家庭场景图+YouTube评测，配合wifi 6 / home network关键词']},
+'打印机':{cat:'Electronics > Office Electronics > Printers',tips:['热词：wireless printer / portable printer / thermal printer，功能词为主','差异化：无线+便携+热敏，客单价$50-120','季节：全年常青','评论切入点：差评集中在"卡纸""耗材贵"，用热敏技术+无墨+APP连接','广告策略：办公场景图+YouTube评测，配合office / home office关键词']},
+'投影仪':{cat:'Electronics > Television & Video > Projectors',tips:['热词：mini projector / portable projector / movie projector，功能词为主','差异化：高清+便携+WiFi，客单价$40-100','季节：Q4圣诞季是高峰','评论切入点：差评集中在"亮度不够""噪"，用1080P+LED光源+智能系统','广告策略：家庭影院场景视频+YouTube，配合movie night / christmas关键词']},
+'电视':{cat:'Electronics > Television & Video > TVs',tips:['热词：smart TV / LED TV / 4K TV，功能词为主','差异化：4K+智能+大屏，客单价$200-500','季节：Q4黑五网一是最大高峰','评论切入点：差评集中在"漏光""系统卡"，用IPS面板+安卓系统+质检报告','广告策略：家庭场景视频+YouTube评测，配合smart TV / black friday关键词']},
+'空调':{cat:'Home & Kitchen > Heating, Cooling & Air Quality > Air Conditioners',tips:['热词：portable air conditioner / window AC / mini AC，功能词为主','差异化：便携+制冷+节能，客单价$150-300','季节：春夏是高峰','评论切入点：差评集中在"噪音大""制冷差"，用压缩机+静音设计+能效标注','广告策略：家庭场景视频+YouTube，配合summer cooling关键词']},
+'风扇':{cat:'Home & Kitchen > Heating, Cooling & Air Quality > Fans',tips:['热词：desk fan / portable fan / rechargeable fan，功能词为主','差异化：静音+充电+多档，客单价$10-25','季节：春夏是高峰','评论切入点：差评集中在"风量小""续航短"，用无刷电机+20小时续航+USB充电','广告策略：桌面场景图+TikTok，配合summer / desk setup关键词']},
+'加湿器':{cat:'Home & Kitchen > Heating, Cooling & Air Quality > Humidifiers',tips:['热词：humidifier / cool mist humidifier / ultrasonic humidifier，功能词为主','差异化：静音+大水箱+氛围灯，客单价$15-35','季节：Q4冬季是高峰','评论切入点：差评集中在"噪音大""漏水"，用超声波+静音设计+防漏底座','广告策略：卧室场景图+YouTube，配合winter / bedroom keywords']},
+'空气净化器':{cat:'Home & Kitchen > Heating, Cooling & Air Quality > Air Purifiers',tips:['热词：air purifier / HEPA purifier / desktop purifier，功能词为主','差异化：HEPA+除甲醛+静音，客单价$30-80','季节：Q4冬季是高峰','评论切入点：差评集中在"噪音大""滤芯贵"，用HEPA H13+替换滤芯可买+质保2年','广告策略：家庭场景图+YouTube评测，配合air quality / allergy关键词']},
+'扫地机':{cat:'Home & Kitchen > Vacuums & Floor Care > Robotic Vacuums',tips:['热词：robot vacuum / robotic vacuum / automatic vacuum，功能词为主','差异化：智能+扫拖一体+APP控制，客单价$80-200','季节：全年常青，Q4是高峰','评论切入点：差评集中在"撞墙""卡困"，用激光导航+防跌落+自动回充','广告策略：清洁演示视频+YouTube，配合smart home / christmas gift关键词']},
+'洗衣机':{cat:'Home & Kitchen > Washers & Dryers > Washing Machines',tips:['热词：portable washing machine / mini washer / compact washer，功能词为主','差异化：迷你+便携+全自动，客单价$100-200','季节：全年常青','评论切入点：差评集中在"洗不干净""漏水"，用波轮+脱水+防漏设计','广告策略：宿舍场景图+YouTube评测，配合dorm / apartment关键词']},
+'冰箱':{cat:'Home & Kitchen > Refrigerators & Freezers > Compact Refrigerators',tips:['热词：mini fridge / compact fridge / beverage fridge，功能词为主','差异化：迷你+静音+节能，客单价$100-250','季节：全年常青，Q4是高峰','评论切入点：差评集中在"噪音大""不制冷"，用压缩机+静音设计+能效标注','广告策略：宿舍/办公室场景图+YouTube，配合dorm / office关键词']},
+'微波炉':{cat:'Home & Kitchen > Kitchen & Dining > Microwave Ovens',tips:['热词：microwave oven / compact microwave / countertop microwave，功能词为主','差异化：迷你+快捷+易清洁，客单价$50-100','季节：全年常青','评论切入点：差评集中在"噪音大""加热不均"，用转盘+多级火力+易清洁内胆','广告策略：厨房场景图+YouTube评测，配合kitchen / dorm keywords']},
+'烤箱':{cat:'Home & Kitchen > Kitchen & Dining > Toaster Ovens',tips:['热词：toaster oven / countertop oven / convection oven，功能词为主','差异化：对流+多功能+易清洁，客单价$40-80','季节：Q4圣诞季是高峰','评论切入点：差评集中在"温度不准""难清洁"，用对流烤+不粘内胆+易清洁设计','广告策略：烘焙场景视频+YouTube，配合baking / christmas keywords']},
+'咖啡机':{cat:'Home & Kitchen > Kitchen & Dining > Coffee Makers',tips:['热词：coffee maker / espresso machine / drip coffee maker，功能词为主','差异化：便携+一键萃取+易清洁，客单价$20-50','季节：全年常青，Q4是高峰','评论切入点：差评集中在"萃取慢""有渣"，用15Bar压力+不锈钢滤网+易清洁','广告策略：咖啡场景视频+YouTube，配合coffee / morning routine keywords']},
+'烧水壶':{cat:'Home & Kitchen > Kitchen & Dining > Electric Kettles',tips:['热词：electric kettle / glass kettle / tea kettle，功能词为主','差异化：玻璃+快速沸腾+保温，客单价$15-30','季节：全年常青','评论切入点：差评集中在"漏水""有味"，用高硼硅玻璃+304不锈钢+防干烧','广告策略：厨房场景图+YouTube，配合tea / coffee keywords']},
+'榨汁机':{cat:'Home & Kitchen > Kitchen & Dining > Blenders',tips:['热词：portable blender / personal blender / juice blender，功能词为主','差异化：便携+充电+易清洗，客单价$15-30','季节：春夏是高峰','评论切入点：差评集中在"动力弱""难洗"，用6叶刀片+USB充电+可拆卸清洗','广告策略：奶昔制作视频+TikTok，配合smoothie / fitness keywords']},
+'空气炸锅':{cat:'Home & Kitchen > Kitchen & Dining > Deep Fryers',tips:['热词：air fryer / digital air fryer / oil free fryer，功能词为主','差异化：无油+多功能+易清洁，客单价$40-80','季节：Q4圣诞季是高峰','评论切入点：差评集中在"容量小""难清洁"，用大容量+不粘内胆+易清洗','广告策略：美食制作视频+YouTube，配合healthy cooking / christmas keywords']},
+'电饭煲':{cat:'Home & Kitchen > Kitchen & Dining > Rice Cookers',tips:['热词：rice cooker / mini rice cooker / electric cooker，功能词为主','差异化：迷你+多功能+易清洁，客单价$20-50','季节：全年常青','评论切入点：差评集中在"夹生""粘锅"，用不粘内胆+智能预约+保温功能','广告策略：厨房场景图+YouTube，配合asian food / kitchen keywords']},
+'平底锅':{cat:'Home & Kitchen > Kitchen & Dining > Cookware',tips:['热词：frying pan / non stick pan / skillet，功能词为主','差异化：不粘+电磁炉通用+易清洁，客单价$15-35','季节：全年常青','评论切入点：差评集中在"涂层掉""粘锅"，用食品级不粘+不锈钢底+质检报告','广告策略：烹饪视频+YouTube，配合cooking / kitchen keywords']},
+'刀':{cat:'Home & Kitchen > Kitchen & Dining > Knife Sets',tips:['热词：kitchen knife set / chef knife / stainless steel knives，功能词为主','差异化：不锈钢+锋利+刀架，客单价$20-50','季节：Q4圣诞季是高峰','评论切入点：差评集中在"生锈""钝"，用高碳钢+锋利刀刃+刀架收纳','广告策略：切菜演示视频+YouTube，配合cooking / christmas gift keywords']},
+'砧板':{cat:'Home & Kitchen > Kitchen & Dining > Cutting Boards',tips:['热词：cutting board / chopping board / bamboo cutting board，功能词为主','差异化：竹制+防滑+双面，客单价$10-20','季节：全年常青','评论切入点：差评集中在"发霉""有刀痕"，用楠竹+食品级油+双面设计','广告策略：厨房场景图+YouTube，配合kitchen / cooking keywords']},
+'保鲜盒':{cat:'Home & Kitchen > Kitchen & Dining > Food Storage',tips:['热词：food storage containers / meal prep containers / glass containers，功能词为主','差异化：玻璃+密封+可微波，客单价$15-30，做套装提客单','季节：全年常青','评论切入点：差评集中在"漏""有味"，用高硼硅玻璃+硅胶密封圈+可微波','广告策略：备餐场景图+YouTube，配合meal prep / kitchen keywords']},
+'水瓶':{cat:'Sports & Outdoors > Outdoor Recreation > Sports Water Bottles',tips:['热词：water bottle / insulated bottle / sports bottle，功能词为主','差异化：不锈钢+保温+大容量，客单价$15-30','季节：春夏是高峰','评论切入点：差评集中在"不保温""漏"，用316不锈钢+24小时保温+防漏盖','广告策略：健身场景图+TikTok，配合fitness / gym keywords']},
+'水杯':{cat:'Kitchen & Dining > Tumblers & Water Glasses',tips:['热词：tumbler / insulated tumbler / travel mug，功能词为主','差异化：不锈钢+保温+车载杯，客单价$12-25','季节：全年常青，Q4是高峰','评论切入点：差评集中在"不保温""漏"，用304不锈钢+双壁真空+防漏盖','广告策略：车载场景图+Instagram，配合coffee / travel keywords']},
+'饭盒':{cat:'Kitchen & Dining > Lunch Boxes',tips:['热词：lunch box / bento box / lunch container，功能词为主','差异化：不锈钢+分格+保温，客单价$15-30','季节：全年常青，Q4是高峰','评论切入点：差评集中在"漏""有味"，用304不锈钢+分格设计+保温袋','广告策略：办公场景图+YouTube，配合meal prep / work keywords']},
+'餐具':{cat:'Kitchen & Dining > Flatware',tips:['热词：silverware set / stainless steel flatware / utensil set，功能词为主','差异化：不锈钢+抛光+套装，客单价$15-30','季节：Q4圣诞季是高峰','评论切入点：差评集中在"生锈""有印"，用304不锈钢+抛光工艺+质检报告','广告策略：餐桌场景图+YouTube，配合dining / christmas keywords']},
+'吸管':{cat:'Kitchen & Dining > Straws',tips:['热词：reusable straws / stainless steel straws / metal straws，功能词为主','差异化：不锈钢+便携+清洁刷，客单价$8-15，做套装提客单','季节：全年常青','评论切入点：差评集中在"变形""有味"，用304不锈钢+食品级硅胶+清洁刷','广告策略：环保概念+Instagram，配合eco friendly / zero waste keywords']},
+'开瓶器':{cat:'Kitchen & Dining > Bar Tools',tips:['热词：bottle opener / wine opener / corkscrew，功能词为主','差异化：多功能+不锈钢+便携，客单价$8-15','季节：Q4圣诞季是高峰','评论切入点：差评集中在"断""卡"，用不锈钢+人体工学+质检','广告策略：派对场景图+YouTube，配合bar tools / christmas gift keywords']},
+'酒杯':{cat:'Kitchen & Dining > Wine Glasses',tips:['热词：wine glasses / stemless wine glasses / glass set，风格词为主','差异化：水晶+无柄+套装，客单价$15-30','季节：Q4圣诞季是高峰','评论切入点：差评集中在"易碎""薄"，用加厚水晶+防碎包装+质检','广告策略：派对场景图+Instagram，配合wine / christmas keywords']},
+'冰格':{cat:'Kitchen & Dining > Ice Cube Trays',tips:['热词：ice cube tray / silicone ice tray / large ice mold，功能词为主','差异化：硅胶+易脱模+带盖，客单价$8-15','季节：春夏是高峰','评论切入点：差评集中在"有味""难脱模"，用食品级硅胶+易脱模+带盖设计','广告策略：调酒场景图+TikTok，配合cocktail / summer keywords']},
+'保温杯':{cat:'Kitchen & Dining > Travel Mugs',tips:['热词：insulated tumbler / coffee tumbler / travel mug，功能词为主','差异化：不锈钢+保温+车载，客单价$15-30','季节：Q4秋冬是高峰','评论切入点：差评集中在"不保温""漏"，用316不锈钢+12小时保温+防漏盖','广告策略：通勤场景图+Instagram，配合coffee / morning keywords']},
+'茶漏':{cat:'Kitchen & Dining > Tea Tools',tips:['热词：tea infuser / tea strainer / loose tea infuser，功能词为主','差异化：不锈钢+超细孔+便携，客单价$8-12','季节：全年常青','评论切入点：差评集中在"漏茶渣""生锈"，用304不锈钢+超细孔+抛光','广告策略：泡茶场景图+YouTube，配合tea / loose leaf keywords']},
+'咖啡杯':{cat:'Kitchen & Dining > Coffee Cups',tips:['热词：coffee cup / ceramic mug / novelty mug，风格词为主','差异化：陶瓷+大容量+个性化，客单价$10-20','季节：Q4圣诞季是高峰','评论切入点：差评集中在"掉漆""有裂"，用陶瓷+高温烧制+质检','广告策略：办公场景图+Instagram，配合coffee / christmas keywords']},
+'搅拌':{cat:'Kitchen & Dining > Mixing Bowls',tips:['热词：mixing bowls / nesting bowls / stainless steel bowls，功能词为主','差异化：不锈钢+嵌套+防滑，客单价$15-30，做套装提客单','季节：全年常青','评论切入点：差评集中在"滑""有味"，用304不锈钢+防滑底+嵌套设计','广告策略：烘焙场景图+YouTube，配合baking / kitchen keywords']},
+'沥水':{cat:'Kitchen & Dining > Dish Racks',tips:['热词：dish rack / drying rack / dish drainer，功能词为主','差异化：不锈钢+大容量+可折叠，客单价$15-30','季节：全年常青','评论切入点：差评集中在"生锈""晃"，用不锈钢+加固设计+接水盘','广告策略：厨房场景图+YouTube，配合kitchen / organization keywords']},
+'清洁':{cat:'Health & Household > Cleaning Supplies',tips:['热词：cleaning brush / scrub brush / dish brush，功能词为主','差异化：硅胶+防滑+多用途，客单价$8-15，做套装提客单','季节：全年常青','评论切入点：差评集中在"掉毛""硬"，用食品级硅胶+防滑手柄+多用途','广告策略：清洁演示视频+TikTok，配合cleaning / kitchen keywords']},
+'拖把':{cat:'Home & Kitchen > Cleaning Tools > Mops',tips:['热词：spin mop / floor mop / microfiber mop，功能词为主','差异化：旋转+免手洗+微纤维，客单价$20-40','季节：全年常青','评论切入点：差评集中在"脱水差""掉毛"，用微纤维+旋转脱水+不锈钢杆','广告策略：清洁演示视频+YouTube，配合cleaning / home keywords']},
+'扫帚':{cat:'Home & Kitchen > Cleaning Tools > Brooms',tips:['热词：broom and dustpan / broom set / sweep set，功能词为主','差异化：不锈钢+软毛+长柄，客单价$15-25','季节：全年常青','评论切入点：差评集中在"掉毛""太短"，用软毛+不锈钢长柄+防滑','广告策略：清洁场景图+YouTube，配合cleaning / home keywords']},
+'垃圾桶':{cat:'Home & Kitchen > Waste Management > Trash Cans',tips:['热词：trash can / garbage can / kitchen trash can，功能词为主','差异化：不锈钢+感应+脚踏，客单价$20-40','季节：全年常青','评论切入点：差评集中在"感应不灵""有味"，用不锈钢+红外感应+密封盖','广告策略：厨房场景图+YouTube，配合kitchen / smart home keywords']},
+'衣架':{cat:'Home & Kitchen > Storage & Organization > Hangers',tips:['热词：hangers / clothes hanger / non slip hangers，功能词为主','差异化：防滑+植绒+省空间，客单价$10-15，做30个装提客单','季节：全年常青','评论切入点：差评集中在"变形""有味"，用植绒+防滑+省空间设计','广告策略：衣柜收纳场景图+Pinterest，配合organization / closet keywords']},
+'收纳箱':{cat:'Home & Kitchen > Storage & Organization > Storage Bins',tips:['热词：storage bin / storage box / lidded storage box，功能词为主','差异化：可折叠+透明+带盖，客单价$12-25，做套装提客单','季节：1-2月新年收纳季是高峰','评论切入点：差评集中在"太软""尺寸小"，用加厚PP+透明视窗+真实尺寸','广告策略：收纳前后对比图+Pinterest，配合organization / closet keywords']},
+'鞋架':{cat:'Home & Kitchen > Storage & Organization > Shoe Racks',tips:['热词：shoe rack / shoe storage / shoe organizer，功能词为主','差异化：简易+多层+省空间，客单价$15-30','季节：全年常青','评论切入点：差评集中在"晃""装不下"，用钢管+加固设计+真实尺寸','广告策略：玄关收纳场景图+Pinterest，配合entryway / organization keywords']},
+'衣柜':{cat:'Home & Kitchen > Storage & Organization > Armoires',tips:['热词：wardrobe closet / portable closet / clothing rack，功能词为主','差异化：简易+大容量+防尘，客单价$30-60','季节：全年常青','评论切入点：差评集中在"晃""布料薄"，用钢管+加固设计+加厚布料','广告策略：卧室收纳场景图+Pinterest，配合organization / bedroom keywords']},
+'抽屉':{cat:'Home & Kitchen > Storage & Organization > Drawer Organizers',tips:['热词：drawer organizer / drawer dividers / storage trays，功能词为主','差异化：可调节+防滑+多用途，客单价$10-20','季节：全年常青','评论切入点：差评集中在"划不动""有味"，用塑料+防滑底+可调节','广告策略：抽屉收纳场景图+Pinterest，配合organization / kitchen keywords']},
+'置物':{cat:'Home & Kitchen > Storage & Organization > Closet Systems',tips:['热词：closet organizer / wardrobe system / closet system，功能词为主','差异化：模块化+可调节+大容量，客单价$30-80','季节：1-2月新年收纳季是高峰','评论切入点：差评集中在"装不牢""晃"，用钢管+加固设计+安装视频','广告策略：衣柜改造前后对比图+YouTube，配合organization / closet keywords']}
 };
-let cat=m[t.trim()];
-if(!cat){
-const lower=t.trim().toLowerCase();
-for(const[k,v]of Object.entries(m)){
-if(lower.includes(k.toLowerCase())||k.toLowerCase().includes(lower)){cat=v;break;}
-}
+// 模糊匹配
+let result=null;
+const q=t.trim().toLowerCase();
+for(const[k,v]of Object.entries(db)){
+if(q===k.toLowerCase()||q.includes(k.toLowerCase())||k.toLowerCase().includes(q)){result=v;break;}
 }
 setTimeout(()=>{
-s({cat:cat||'未匹配到具体类目，建议换更具体的关键词',product:t.trim()});
+s({cat:result?result.cat:'未匹配到具体类目，建议换更具体的关键词（如"手机壳"而非"手机"）',tips:result?result.tips:['换个更具体的词试试，比如"海报"而不是"画"','结合品牌/型号/场景词搜索更精准','亚马逊美区类目参考：Arts > Home > Electronics > Toys > Pet > Beauty > Sports > Automotive','没有100%覆盖所有产品，先做关键词方向和竞品调研','用卖家精灵/Helium10验证类目和竞争度'],product:t.trim()});
 l(!1);
 },500);
 },[t]);
@@ -357,14 +452,8 @@ a?(0,Y.jsxs)('div',{className:'p-4 rounded-lg bg-muted/50 space-y-3',children:[
 (0,Y.jsx)('div',{className:'text-xs mt-1 p-2 rounded bg-background',style:{color:e.primary},children:a.cat})
 ]}),
 (0,Y.jsxs)('div',{children:[
-(0,Y.jsx)('div',{className:'text-xs text-muted-foreground mb-1',children:'运营思路扩展'}),
-(0,Y.jsxs)('ul',{className:'text-xs space-y-1.5 text-foreground/80',children:[
-(0,Y.jsx)('li',{children:'• 关键词方向：大词竞争激烈，优先打长尾词（如+gift / +for women / +decor）'}),
-(0,Y.jsx)('li',{children:'• 定价策略：参考Best Sellers前10名价格带，新品建议定中间偏下+Coupon 10-15%'}),
-(0,Y.jsx)('li',{children:'• 视觉差异化：主图突出使用场景，对比图+尺寸图降低退货率'}),
-(0,Y.jsx)('li',{children:'• 季节节点：提前60-90天备货，旺季前30天开始投广告'}),
-(0,Y.jsx)('li',{children:'• 评论切入点：分析竞品差评，解决其痛点就是你的卖点'})
-]})
+(0,Y.jsx)('div',{className:'text-xs text-muted-foreground mb-1',children:'运营思路扩展（类目专属）'}),
+(0,Y.jsxs)('ul',{className:'text-xs space-y-1.5 text-foreground/80',children:a.tips.map((tip,i)=>(0,Y.jsx)('li',{children:'• '+tip},i))})
 ]})
 ]}):null
 ]})
