@@ -79,6 +79,7 @@ export async function onRequestGet(context) {
     }
     const { data, sha, error } = await fetchFromGitHub(context.env);
     if (error) return new Response(JSON.stringify({ error }), { status: 500, headers: corsHeaders });
+    applyTombstones(data);
     _cache = { data, sha };
     _cacheAt = now;
     return new Response(JSON.stringify({ success: true, data }), { headers: corsHeaders });
@@ -109,6 +110,27 @@ function isEmptyValue(v) {
 // 数组型字段按 id + updated_at 做 last-write-wins 合并，旧tab/旧设备不会用旧状态覆盖新状态
 const MERGE_BY_ID_FIELDS = ['purchase_orders', 'lead_time_records'];
 
+// 参与墓碑过滤的数组字段
+const TOMBSTONE_FIELDS = ['purchase_orders', 'lead_time_records'];
+
+function getTombstoneSet(data) {
+  const t = data && data._tombstones;
+  return new Set(Array.isArray(t) ? t.map(x => String(x)) : []);
+}
+
+// 读取/合并前剔除已墓碑删除的记录，杜绝删除单复活
+function applyTombstones(data) {
+  if (!data || typeof data !== 'object') return data;
+  const tombs = getTombstoneSet(data);
+  if (tombs.size === 0) return data;
+  for (const f of TOMBSTONE_FIELDS) {
+    if (Array.isArray(data[f])) {
+      data[f] = data[f].filter(r => !(r && r.id != null && tombs.has(String(r.id))));
+    }
+  }
+  return data;
+}
+
 function recUpdatedAt(rec) {
   if (!rec) return 0;
   const t = rec.updated_at || rec.updatedAt || rec.created_at || rec.createdAt || 0;
@@ -125,6 +147,14 @@ async function handleSave(context) {
     }
     const latest = await fetchFromGitHub(context.env);
     const existing = (latest.data && typeof latest.data === 'object') ? latest.data : {};
+    applyTombstones(existing);
+
+    // 墓碑集合：云端已有墓碑 + 本次前端带来的墓碑，删除单永久剔除、不复活
+    const tombSet = getTombstoneSet(existing);
+    const incomingTombs = incoming._tombstones;
+    if (Array.isArray(incomingTombs)) {
+      for (const t of incomingTombs) if (t != null) tombSet.add(String(t));
+    }
 
     // 服务端字段级合并：只有前端传来的"非空"字段才覆盖云端；空值一律保留云端原值
     const merged = { ...existing };
@@ -141,12 +171,15 @@ async function handleSave(context) {
       if (MERGE_BY_ID_FIELDS.includes(key) && Array.isArray(val) && Array.isArray(existing[key])) {
         const cloudMap = new Map();
         for (const rec of existing[key]) {
-          if (rec && rec.id != null) cloudMap.set(String(rec.id), rec);
+          if (rec && rec.id != null && !tombSet.has(String(rec.id))) cloudMap.set(String(rec.id), rec);
         }
+        const valIds = new Set();
         let upserted = 0;
         for (const rec of val) {
           if (!rec || rec.id == null) continue;
           const cid = String(rec.id);
+          valIds.add(cid);
+          if (tombSet.has(cid)) continue; // 已墓碑删除，不回写
           const cloudRec = cloudMap.get(cid);
           if (!cloudRec) {
             cloudMap.set(cid, rec);
@@ -161,12 +194,22 @@ async function handleSave(context) {
             // 否则云端更新，保留云端记录
           }
         }
-        // 显式删除列表（前端删除记录时传 _deleted_<field>）
+        // 显式删除列表（前端删除记录时传 _deleted_<field>）：剔除并写入墓碑
         const deletedKey = '_deleted_' + key;
         const deletedIds = incoming[deletedKey] || body[deletedKey];
         if (Array.isArray(deletedIds)) {
           for (const did of deletedIds) {
-            if (did != null) cloudMap.delete(String(did));
+            if (did != null) {
+              cloudMap.delete(String(did));
+              tombSet.add(String(did));
+            }
+          }
+        }
+        // 全量差量删除：云端存在但本次全量列表已不含的记录，判定为已删除，写入墓碑不复活
+        for (const cid of Array.from(cloudMap.keys())) {
+          if (!valIds.has(cid)) {
+            cloudMap.delete(cid);
+            tombSet.add(cid);
           }
         }
         merged[key] = Array.from(cloudMap.values());
@@ -180,6 +223,9 @@ async function handleSave(context) {
         merged[key] = val;
       }
     }
+
+    // 持久化墓碑（去重），已删除单不再复活
+    merged._tombstones = Array.from(tombSet);
 
     const result = await pushToGitHub(context.env, merged, latest.sha);
     if (!result.ok) return new Response(JSON.stringify({ error: '保存失败', status: result.status }), { status: 500, headers: corsHeaders });
